@@ -1,0 +1,7 @@
+https://medium.com/codex/rust-adventure-to-develop-a-game-boy-emulator-part-3-cpu-instructions-d6d1d727026f
+
+CI checks
+Test cases
+Visuals
+Inputs
+Parallel processing
