@@ -1,0 +1,12 @@
+https://github.com/CaptainCaffeine/chroma/blob/master/src/gba/cpu/ArmOps.cpp
+
+MAIN:
+https://problemkaputt.de/gbatek.htm#armcpuoverview
+ARM Binary Opcode Format
+THUMB Binary Opcode Format
+
+https://www.chibialiens.com/arm/CheatSheet.pdf
+
+https://www.gregorygaines.com/blog/decoding-the-arm7tdmi-instruction-set-game-boy-advance/
+
+https://www.gregorygaines.com/blog/adding-save-states-to-an-emulator/

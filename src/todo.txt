@@ -1,0 +1,8 @@
+TODOl
+Add front end visual window
+
+STRETCH:
+Add save states
+Add loading roms by file path
+Add saving in game
+Upscaling
