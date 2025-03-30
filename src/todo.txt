@@ -1,3 +1,12 @@
+HASH:
+mask -> exec function
+0011 1110 -> exec_alu_op(cond, opcode)
+OR 
+mask + placementstr -> exec function
+cc11 111o -> exec_alu_op(cond, opcode) => auto convert string fields to correct codes
+
+
+
 TODOl
 Add front end visual window
 
