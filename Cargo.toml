@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 eframe = "0.31.0"     
 egui = "0.31.0"       
+num_enum = "0.7.3"
 sdl2 = "0.37.0"

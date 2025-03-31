@@ -1,7 +1,5 @@
-pub mod registers;
-mod decoder;
-use decoder::{ decode, CPUInstruction };
-
+mod registers;
+mod operations;
 
 pub struct CPU {
     registers: registers::Registers
@@ -19,7 +17,7 @@ impl CPU {
         let opcode: u32 = self.fetch(memory, is_in_thumb_mode);
         let instruction: CPUInstruction = decode(opcode, is_in_thumb_mode);
 
-        self.execute(instruction);
+        instruction.execute(instruction);
     }
 
     pub fn fetch(&mut self, memory: &mut [u32], is_in_thumb_mode: bool) -> u32 {
@@ -39,13 +37,6 @@ impl CPU {
 
     pub fn switch_to_arm(&mut self) {
         self.registers.cpsr &= !0x20; // Clear the T-bit (set to 0)
-    }
-    
-    fn execute(&self, instruction: CPUInstruction) -> _ {
-        // Big long match 
-        match instruction {
-
-        }
     }
 }
 
@@ -74,3 +65,4 @@ enum ShiftType {
     ROR = 3,
     RRX = 4
 }
+
