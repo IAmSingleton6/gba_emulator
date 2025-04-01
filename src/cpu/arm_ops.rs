@@ -2,6 +2,11 @@ use super::CPU;
 use super::ArithResult;
 
 impl CPU {
+    // Returns the number of cycles taken to execute the instruction
+    pub fn execute_arm_instruction(&mut self, opcode: u32) -> i32 {
+
+    }
+
     pub fn arm_adc_imm(condition: Condition, set_flags: bool, n: Reg, d: Reg, imm: u32) -> i32 {
         arm_arith_imm(set_flags, n, d, imm, add_op, registers.get_carry())
     }
