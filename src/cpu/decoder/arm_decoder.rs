@@ -1,11 +1,13 @@
-pub fn decode_arm(opcode: u32) -> ArmInstruction {
+use crate::cpu::ArmExecutor;
+
+pub fn decode_arm(opcode: u32) -> ArmExecutor {
     for format in ARM_INSTRUCTION_FORMATS {
         if format.matches(opcode) {
-            return format.instruction;
+            return format.executor;
         }
     }
 
-    ArmInstruction::Unimplemented
+    ArmInstruction::no_op
 }
 
 #[derive(Debug)]
@@ -29,88 +31,88 @@ pub enum ArmInstruction {
 
 
 #[derive(Debug)]
-struct ArmInstructionFormatter {
+struct ArmDecoder {
     format: u32,
     mask: u32,
-    instruction: ArmInstruction,
+    executor: ArmExecutor,
 }
 
-impl ArmInstructionFormatter {
+impl ArmDecoder {
     fn matches(&self, opcode: u32) -> bool {
         (opcode & self.mask) == self.format
     }
 }
 
-const ARM_INSTRUCTION_FORMATS: [ArmInstructionFormatter; 14 ]= [
-        ArmInstructionFormatter {
+const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14 ]= [
+        ArmDecoder {
             format: 0b0000_0001_0010_1111_1111_1111_0001_0000,
             mask: 0b0000_1111_1111_1111_1111_1111_1111_0000,
-            instruction: ArmInstruction::BranchAndBranchExchange,
+            executor: ArmInstruction::BranchAndBranchExchange,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_1000_0000_0000_0000_0000_0000_0000,
             mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
-            instruction: ArmInstruction::BlockDataTransfer,
+            executor: ArmInstruction::BlockDataTransfer,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_1010_0000_0000_0000_0000_0000_0000,
             mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
-            instruction: ArmInstruction::Branch,
+            executor: ArmInstruction::Branch,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_1111_0000_0000_0000_0000_0000_0000,
             mask: 0b0000_1111_0000_0000_0000_0000_0000_0000,
-            instruction: ArmInstruction::SoftwareInterrupt,
+            executor: ArmInstruction::SoftwareInterrupt,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0110_0000_0000_0000_0000_0001_0000,
             mask: 0b0000_1110_0000_0000_0000_0000_0001_0000,
-            instruction: ArmInstruction::Undefined,
+            executor: ArmInstruction::Undefined,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0100_0000_0000_0000_0000_0000_0000,
             mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
-            instruction: ArmInstruction::SingleDataTransfer,
+            executor: ArmInstruction::SingleDataTransfer,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0001_0000_0000_0000_0000_1001_0000,
             mask: 0b0000_1111_1000_0000_0000_1111_1111_0000,
-            instruction: ArmInstruction::SingleDataSwap,
+            executor: ArmInstruction::SingleDataSwap,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
             mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
-            instruction: ArmInstruction::Multiply,
+            executor: ArmInstruction::Multiply,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0000_1000_0000_0000_0000_1001_0000,
             mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
-            instruction: ArmInstruction::MultiplyLong,
+            executor: ArmInstruction::MultiplyLong,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
             mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
-            instruction: ArmInstruction::HalfwordDataTransferRegister,
+            executor: ArmInstruction::HalfwordDataTransferRegister,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
             mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
-            instruction: ArmInstruction::HalfwordDataTransferImmediate,
+            executor: ArmInstruction::HalfwordDataTransferImmediate,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0001_0000_1111_0000_0000_0000_0000,
             mask: 0b0000_1111_1011_1111_0000_0000_0000_0000,
-            instruction: ArmInstruction::PsrTransferMrs,
+            executor: ArmInstruction::PsrTransferMrs,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0001_0010_0000_1111_0000_0000_0000,
             mask: 0b0000_1101_1011_0000_1111_0000_0000_0000,
-            instruction: ArmInstruction::PsrTransferMsr,
+            executor: ArmInstruction::PsrTransferMsr,
         },
-        ArmInstructionFormatter {
+        ArmDecoder {
             format: 0b0000_0000_0000_0000_0000_0000_0000_0000,
             mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
-            instruction: ArmInstruction::DataProcessing,
+            executor: ArmInstruction::DataProcessing,
         },
     ];
 

@@ -1,9 +1,9 @@
-use decoder::{decode_arm, decode_thumb, ArmInstruction, ThumbInstruction};
+use decoder::{ decode_arm, decode_thumb };
+use executor::{ ArmExecutor, ThumbExecutor };
 
 mod registers;
-mod operations;
 mod decoder;
-mod arm_ops;
+mod executor;
 
 pub struct CPU {
     registers: registers::Registers
@@ -20,11 +20,11 @@ impl CPU {
         let is_in_thumb_mode: bool = self.is_in_thumb_mode();
         let opcode: u32 = self.fetch(memory, is_in_thumb_mode);
         if is_in_thumb_mode {
-            let instruction: ThumbInstruction = decode_thumb(opcode as u16);
-            let cycles: i32 = execute_thumb_instruction(instruction);
+            let executor: ThumbExecutor = decode_thumb(opcode as u16);
+            let cycles: i32 = executor(self, opcode);
         } else {
-            let instruction: ArmInstruction = decode_arm(opcode);
-            let cycles: i32 = execute_arm_instruction(instruction);
+            let executor: ArmExecutor = decode_arm(opcode);
+            let cycles: i32 = executor(self, opcode);
         }
     }
 

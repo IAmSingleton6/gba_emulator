@@ -1,5 +1,6 @@
 // use eframe::egui;
 mod cpu;
+mod memory;
 
 fn main() {
     let mut cpu: cpu::CPU = cpu::CPU::new();
