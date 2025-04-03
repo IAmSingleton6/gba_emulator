@@ -1,4 +1,5 @@
-use crate::cpu::CPU;
+use crate::cpu::CPU; 
+use crate::cpu::operations::{ArithResult, Condition};
 
 pub type ThumbExecutor = fn(&mut CPU, u16) -> i32;
 

@@ -3,7 +3,7 @@ use crate::cpu::CPU;
 
 pub fn decode_thumb(opcode: u16) -> ThumbExecutor {
     for format in THUMB_INSTRUCTION_FORMATS {
-        if format.matches(opcode) {
+        if format.matches(opcode as u16) {
             return format.executor;
         }
     }

@@ -1,4 +1,3 @@
-mod operations;
 mod arm_ops;
 mod thumb_ops;
 

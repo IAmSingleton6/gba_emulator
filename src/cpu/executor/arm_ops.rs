@@ -1,5 +1,5 @@
 use crate::cpu::CPU; 
-use super::operations::{ArithResult, Condition};
+use crate::cpu::operations::{ArithResult, Condition};
 
 pub type ArmExecutor = fn(&mut CPU, u32) -> i32;
 
