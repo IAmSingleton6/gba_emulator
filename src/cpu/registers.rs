@@ -45,8 +45,15 @@ impl Registers {
         }
     }
 
+    // Could add safety checks but slow for every quick access
+    pub fn get_r(&self, index: usize) -> u32 { self.r[index] }
+    pub fn get_sp(&self) -> u32 { self.r[13] }
+    pub fn set_sp(&mut self, value: u32) { self.r[13] = value }
+    pub fn get_lr(&self) -> u32 { self.r[14] }
+    pub fn set_lr(&mut self, value: u32) { self.r[14] = value }
     pub fn get_pc(&self) -> u32 { self.r[15] }
     pub fn set_pc(&mut self, value: u32) { self.r[15] = value }
+
     pub fn get_sign(&self) -> u32 { (self.cpsr & CpsrMasks::SignFlag as u32) >> 31 }
     pub fn set_sign(&mut self, value: bool) { if value { self.cpsr |= (CpsrMasks::SignFlag as u32) } else { self.cpsr &= !(CpsrMasks::SignFlag as u32) } }
     pub fn get_zero(&self) -> u32 { (self.cpsr & CpsrMasks::ZeroFlag as u32) >> 30 }
