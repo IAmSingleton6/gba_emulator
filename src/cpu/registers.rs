@@ -45,8 +45,6 @@ impl Registers {
         }
     }
 
-    
-
     pub fn get_pc(&self) -> u32 { self.r[15] }
     pub fn set_pc(&mut self, value: u32) { self.r[15] = value }
     pub fn get_sign(&self) -> u32 { (self.cpsr & CpsrMasks::SignFlag as u32) >> 31 }

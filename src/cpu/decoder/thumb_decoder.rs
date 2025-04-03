@@ -1,144 +1,123 @@
-pub fn decode_thumb(opcode: u16) -> ThumbInstruction {
+use crate::cpu::ThumbExecutor;
+use crate::cpu::CPU;
+
+pub fn decode_thumb(opcode: u16) -> ThumbExecutor {
     for format in THUMB_INSTRUCTION_FORMATS {
         if format.matches(opcode) {
-            return format.instruction;
+            return format.executor;
         }
     }
 
-    ThumbInstruction::Unimplemented
+    CPU::thumb_no_op
 }
 
 #[derive(Debug)]
-pub enum ThumbInstruction {
-    SoftwareInterrupt,
-    UnconditionalBranch,
-    ConditionalBranch,
-    MultipleLoadStore,
-    LongBranchWithLink,
-    AddOffsetToStackPointer,
-    PushPopRegisters,
-    LoadStoreHalfword,
-    SpRelativeLoadStore,
-    LoadAddress,
-    LoadStoreWithImmediateOffset,
-    LoadStoreWithRegisterOffset,
-    LoadStoreSignExtendedByteHalfword,
-    PcRelativeLoad,
-    HiRegisterOperationsBranchExchange,
-    AluOperations,
-    MoveCompareAddSubtractImmediate,
-    AddSubtract,
-    MoveShiftedRegister,
-    Unimplemented,
-}
-
-#[derive(Debug)]
-struct ThumbInstructionFormatter {
+struct ThumbDecoder {
     format: u16,
     mask: u16,
-    instruction: ThumbInstruction,
+    executor: ThumbExecutor,
 }
 
-impl ThumbInstructionFormatter {
+impl ThumbDecoder {
     fn matches(&self, opcode: u16) -> bool {
         (opcode & self.mask) == self.format
     }
 }
 
-    const THUMB_INSTRUCTION_FORMATS: [ThumbInstructionFormatter; 19] = [
-        ThumbInstructionFormatter {
+    const THUMB_INSTRUCTION_FORMATS: [ThumbDecoder; 19] = [
+        ThumbDecoder {
             format: 0b1101_1111_0000_0000,
             mask: 0b1111_1111_0000_0000,
-            instruction: ThumbInstruction::SoftwareInterrupt,
+            executor: CPU::thumb_software_interrupt,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1110_0000_0000_0000,
             mask: 0b1111_1000_0000_0000,
-            instruction: ThumbInstruction::UnconditionalBranch,
+            executor: CPU::thumb_unconditional_branch,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1101_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::ConditionalBranch,
+            executor: CPU::thumb_conditional_branch,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1100_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::MultipleLoadStore,
+            executor: CPU::thumb_multiple_load_store,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1111_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::LongBranchWithLink,
+            executor: CPU::thumb_long_branch_with_link,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1011_0000_0000_0000,
             mask: 0b1111_1111_0000_0000,
-            instruction: ThumbInstruction::AddOffsetToStackPointer,
+            executor: CPU::thumb_add_offset_to_stack_pointer,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1011_0100_0000_0000,
             mask: 0b1111_0110_0000_0000,
-            instruction: ThumbInstruction::PushPopRegisters,
+            executor: CPU::thumb_push_pop_registers,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1000_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::LoadStoreHalfword,
+            executor: CPU::thumb_load_store_halfword,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1001_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::SpRelativeLoadStore,
+            executor: CPU::thumb_sp_relative_load_store,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1010_0000_0000_0000,
             mask: 0b1111_0000_0000_0000,
-            instruction: ThumbInstruction::LoadAddress,
+            executor: CPU::thumb_load_address,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0110_0000_0000_0000,
             mask: 0b1110_0000_0000_0000,
-            instruction: ThumbInstruction::LoadStoreWithImmediateOffset,
+            executor: CPU::thumb_load_store_with_immediate_offset,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0101_0000_0000_0000,
             mask: 0b1111_0010_0000_0000,
-            instruction: ThumbInstruction::LoadStoreWithRegisterOffset,
+            executor: CPU::thumb_load_store_with_register_offset,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0101_0010_0000_0000,
             mask: 0b1111_0010_0000_0000,
-            instruction: ThumbInstruction::LoadStoreSignExtendedByteHalfword,
+            executor: CPU::thumb_load_store_sign_extended_byte_halfword,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0100_1000_0000_0000,
             mask: 0b1111_1000_0000_0000,
-            instruction: ThumbInstruction::PcRelativeLoad,
+            executor: CPU::thumb_pc_relative_load,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0100_0100_0000_0000,
             mask: 0b1111_1100_0000_0000,
-            instruction: ThumbInstruction::HiRegisterOperationsBranchExchange,
+            executor: CPU::thumb_hi_register_operations_branch_exchange,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0100_0000_0000_0000,
             mask: 0b1111_1100_0000_0000,
-            instruction: ThumbInstruction::AluOperations,
+            executor: CPU::thumb_alu_operations,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b1110_0000_0000_0000,
             mask: 0b0010_0000_0000_0000,
-            instruction: ThumbInstruction::MoveCompareAddSubtractImmediate,
+            executor: CPU::thumb_move_compare_add_subtract_immediate,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0001_1000_0000_0000,
             mask: 0b1111_1000_0000_0000,
-            instruction: ThumbInstruction::AddSubtract,
+            executor: CPU::thumb_add_subtract,
         },
-        ThumbInstructionFormatter {
+        ThumbDecoder {
             format: 0b0000_0000_0000_0000,
             mask: 0b1110_0000_0000_0000,
-            instruction: ThumbInstruction::MoveShiftedRegister,
+            executor: CPU::thumb_move_shifted_register,
         },
     ];
