@@ -5,11 +5,10 @@
     R15: PC
 */
 use num_enum::TryFromPrimitive;
-use super::operations::{ArithResult, CARRY_BIT, SIGN_BIT};
 
 pub struct Registers {
-    pub r: [u32; 16],
-    pub cpsr: u32
+    r: [u32; 16],
+    cpsr: u32
 }
 
 #[repr(u32)]
@@ -18,10 +17,19 @@ enum CpsrMasks {
     ZeroFlag     = 0x4000_0000,
     CarryFlag    = 0x2000_0000,
     OverflowFlag = 0x1000_0000,
+
     IrqDisable   = 0x0000_0080,
     FiqDisable   = 0x0000_0040,
     ThumbMode    = 0x0000_0020,
     CpuMode      = 0x0000_001F,
+}
+
+impl CpsrMasks {
+    fn bits(self) -> u32 { self as u32 }
+}
+
+pub trait FlagResult {
+    fn apply_flags(&self, regs: &mut Registers);
 }
 
 #[repr(u32)]
@@ -45,37 +53,53 @@ impl Registers {
         }
     }
 
-    // Could add safety checks but slow for every quick access
-    pub fn get_r(&self, index: usize) -> u32 { self.r[index] }
+    // Registers
+    pub fn get_r(&self, index: usize) -> u32 { debug_assert!(index < 16); self.r[index] }
+    pub fn set_r(&mut self, index: usize, value: u32) { debug_assert!(index < 16); self.r[index] = value }
     pub fn get_sp(&self) -> u32 { self.r[13] }
     pub fn set_sp(&mut self, value: u32) { self.r[13] = value }
     pub fn get_lr(&self) -> u32 { self.r[14] }
     pub fn set_lr(&mut self, value: u32) { self.r[14] = value }
     pub fn get_pc(&self) -> u32 { self.r[15] }
+    pub fn get_visible_pc(&self) -> u32 { self.get_pc().wrapping_add(if self.is_thumb() { 4 } else { 8 }) }
     pub fn set_pc(&mut self, value: u32) { self.r[15] = value }
 
-    pub fn get_sign(&self) -> u32 { (self.cpsr & CpsrMasks::SignFlag as u32) >> 31 }
-    pub fn set_sign(&mut self, value: bool) { if value { self.cpsr |= (CpsrMasks::SignFlag as u32) } else { self.cpsr &= !(CpsrMasks::SignFlag as u32) } }
-    pub fn get_zero(&self) -> u32 { (self.cpsr & CpsrMasks::ZeroFlag as u32) >> 30 }
-    pub fn set_zero(&mut self, value: bool) { if value { self.cpsr |= (CpsrMasks::ZeroFlag as u32) } else { self.cpsr &= !(CpsrMasks::ZeroFlag as u32) } }
-    pub fn get_carry(&self) -> u32 { (self.cpsr & CpsrMasks::CarryFlag as u32) >> 29 }
-    pub fn set_carry(&mut self, value: bool) { if value { self.cpsr |= (CpsrMasks::CarryFlag as u32) } else { self.cpsr &= !(CpsrMasks::CarryFlag as u32) } }
-    pub fn get_overflow(&self) -> u32 { (self.cpsr & CpsrMasks::OverflowFlag as u32) >> 28 }
-    pub fn set_overflow(&mut self, value: bool) { if value { self.cpsr |= (CpsrMasks::OverflowFlag as u32) } else { self.cpsr &= !(CpsrMasks::OverflowFlag as u32) } }
+    // CPSR
+    pub fn get_cpsr(&self) -> u32 { self.cpsr }
+    pub fn set_cpsr(&mut self, value: u32) { self.cpsr = value }
+    pub fn get_sign(&self) -> bool { (self.cpsr & CpsrMasks::SignFlag.bits()) != 0 }
+    pub fn set_sign(&mut self, value: bool) { if value { self.cpsr |= CpsrMasks::SignFlag.bits() } else { self.cpsr &= !CpsrMasks::SignFlag.bits() } }
+    pub fn get_zero(&self) -> bool { (self.cpsr & CpsrMasks::ZeroFlag.bits()) != 0 }
+    pub fn set_zero(&mut self, value: bool) { if value { self.cpsr |= CpsrMasks::ZeroFlag.bits() } else { self.cpsr &= !CpsrMasks::ZeroFlag.bits() } }
+    pub fn get_carry(&self) -> bool { (self.cpsr & CpsrMasks::CarryFlag.bits()) != 0 }
+    pub fn set_carry(&mut self, value: bool) { if value { self.cpsr |= CpsrMasks::CarryFlag.bits() } else { self.cpsr &= !CpsrMasks::CarryFlag.bits() } }
+    pub fn get_overflow(&self) -> bool { (self.cpsr & CpsrMasks::OverflowFlag.bits()) != 0 }
+    pub fn set_overflow(&mut self, value: bool) { if value { self.cpsr |= CpsrMasks::OverflowFlag.bits() } else { self.cpsr &= !CpsrMasks::OverflowFlag.bits() } }
 
-    pub fn get_current_cpu_mode(&self) -> CpuMode { CpuMode::try_from(self.cpsr & CpsrMasks::CpuMode as u32).unwrap_or(CpuMode::Undefined) }
+    pub fn get_current_cpu_mode(&self) -> CpuMode { CpuMode::try_from(self.cpsr & CpsrMasks::CpuMode.bits()).unwrap_or(CpuMode::Undefined) }
     pub fn has_spsr(&self) -> bool { self.get_current_cpu_mode() != CpuMode::User && self.get_current_cpu_mode() != CpuMode::System }
 
-    pub fn conditional_set_all_flags(&mut self, set_flags: bool, result: ArithResult) {
-        if set_flags {
-            self.set_all_flags(result);
+    pub fn is_thumb(&self) -> bool { (self.cpsr & CpsrMasks::ThumbMode.bits()) != 0 }
+    pub fn set_thumb_state(&mut self, enabled: bool) {
+        if enabled {
+            self.cpsr |= CpsrMasks::ThumbMode.bits();
+        } else {
+            self.cpsr &= !(CpsrMasks::ThumbMode.bits());
         }
     }
-    
-    fn set_all_flags(&mut self, result: ArithResult) {
-        self.set_sign((result.value & SIGN_BIT) != 0);
-        self.set_zero(result.value as u32 == 0);
-        self.set_carry((result.value & CARRY_BIT) != 0);
-        self.set_overflow(result.overflow);
+
+    pub fn mov(&mut self, rd: usize, nn: u32) {
+        self.set_r(rd, nn);
+        self.set_flags(&nn);
+    }
+
+    pub fn set_flags<T: FlagResult>(&mut self, result: &T) {
+        result.apply_flags(self);
+    }
+
+    pub fn set_flags_if<T: FlagResult>(&mut self, condition: bool, result: &T) {
+        if condition {
+            self.set_flags(result);
+        }
     }
 }

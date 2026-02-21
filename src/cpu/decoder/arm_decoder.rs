@@ -96,4 +96,3 @@ const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14 ]= [
             executor: CPU::arm_data_processing,
         },
     ];
-
