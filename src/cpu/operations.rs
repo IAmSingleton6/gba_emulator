@@ -65,9 +65,10 @@ pub const fn mvn_op(_: u32, v2: u32) -> u32 {
     !v2
 }
 
-pub type MulOp = fn(u32, u32, u32, u32) -> i64;
-pub const fn mul_op() -> ArithResult {
-
+pub type MulOp = fn(u32, u32) -> u32;
+pub const fn mul_op(v1: u32, v2: u32) -> MulResult {
+    let result = ((v1 as u64) * (v2 as u64)) as u32;
+    MulResult { result }
 }
 
 pub type ArithOp = fn(u32, u32, bool) -> ArithResult;
@@ -95,6 +96,21 @@ pub const fn add_with_carry(v1: u32, v2: u32, carry: bool) -> ArithResult {
         result,
         carry: carry_out,
         overflow,
+    }
+}
+
+pub struct MulResult {
+    result: u32
+}
+
+impl MulResult {
+    pub fn result(&self) -> u32 {
+        self.result
+    }
+
+    pub fn cycles(&self) -> u64 {
+        let msbs = (self.result >> 28) & 0xF; // Extract bits 28-31
+        (1 + msbs) as u64
     }
 }
 
@@ -130,6 +146,13 @@ impl ResultWithCarry {
 
     pub fn carry(&self) -> bool {
         self.carry
+    }
+}
+
+impl FlagResult for MulResult {
+    fn apply_flags(&self, regs: &mut Registers) {
+        regs.set_sign((self.result() & SIGN_BIT) != 0);
+        regs.set_zero(self.result() == 0);
     }
 }
 
@@ -183,7 +206,7 @@ pub const fn lsl_op(value: u32, amount: u32, carry: bool) -> ResultWithCarry {
     }
 }
 
-pub const fn lsr_op(value: u32, amount: u32, _carry: bool) -> ResultWithCarry {
+pub const fn lsr_op(value: u32, amount: u32, carry: bool) -> ResultWithCarry {
     let shift = if amount == 0 { 32 } else { amount };
 
     match shift {
@@ -193,8 +216,8 @@ pub const fn lsr_op(value: u32, amount: u32, _carry: bool) -> ResultWithCarry {
         },
 
         _ => ResultWithCarry {
-            result: 0,
-            carry: (value >> 31) & 1 != 0,
+            result: value,
+            carry: carry,
         },
     }
 }

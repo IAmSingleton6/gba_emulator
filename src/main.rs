@@ -1,9 +1,13 @@
+use crate::{cpu::CPU, memory::{Memory, MemoryAccess}};
+
 // use eframe::egui;
 mod cpu;
 mod memory;
 
 fn main() {
-    let mut cpu: cpu::CPU = cpu::CPU::new();
+    let memory: Box<dyn MemoryAccess> = Box::new(Memory::new(1024 * 1024)); // 1MB of memory
+    let mut cpu = CPU::new(memory);
+
     let mut memory: [u32; 256] = [0; 256];
     memory[0] = 0xE0000000;
 
