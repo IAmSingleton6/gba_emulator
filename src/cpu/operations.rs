@@ -2,7 +2,7 @@ use num_enum::FromPrimitive;
 
 use crate::cpu::registers::{FlagResult, Registers};
 
-pub const CARRY_BIT: u32 = 0x1_0000_0000;
+pub const CARRY_BIT: u64 = 0x1_0000_0000;
 pub const SIGN_BIT: u32 = 0x8000_0000;
 
 #[repr(u16)]

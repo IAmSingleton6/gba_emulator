@@ -1,4 +1,6 @@
-use crate::cpu::operations::{add_op, and_op, bic_op, eor_op, mvn_op, orr_op, rsb_op, should_branch, sub_op, Condition};
+use crate::cpu::operations::{
+    add_op, and_op, bic_op, eor_op, mvn_op, orr_op, rsb_op, should_branch, sub_op, Condition,
+};
 use crate::cpu::CPU;
 use simple_bits::BitsExt;
 
@@ -9,6 +11,11 @@ impl CPU {
         0
     }
 
+    // B (Branch), BL (Branch with Link), BX (Branch and Exchange), BLX (Branch and Exchange with Link)
+    // B:  Cond[31-28]=any, 27-25=101, 24=L, 23-0=Offset
+    // BL: Cond=1111, 27-25=101, 24=1, 23-0=Offset (sets LR = PC+4)
+    // BX: Cond=1111, 27-8=0001001011111111, 7-4=0001, 3-0=Rn (switches ARM/Thumb, bit 0 of Rn determines mode)
+    // BLX: Cond=1111, 27-8=0001001011111111, 7-4=0011, 3-0=Rn (Branch with Link, switches mode)
     pub fn arm_branch_and_branch_exchange(&mut self, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
@@ -21,24 +28,28 @@ impl CPU {
         let bits_7_4 = opcode.extract_bits(4..8);
 
         if bits_27_25 == 0b101 && !bit_24 {
-            return self.arm_branch_impl(opcode);
+            return self.arm_branch_impl(opcode); // B - Branch
         }
 
         if bits_27_25 == 0b101 && bit_24 {
-            return self.arm_branch_with_link(opcode);
+            return self.arm_branch_with_link(opcode); // BL - Branch with Link
         }
 
         if bits_27_25 == 0b001 && bits_7_4 == 0b0001 {
-            return self.arm_branch_exchange(opcode);
+            return self.arm_branch_exchange(opcode); // BX - Branch and Exchange
         }
 
         if bits_27_25 == 0b001 && bits_7_4 == 0b0011 {
-            return self.arm_branch_with_link_register(opcode);
+            return self.arm_branch_with_link_register(opcode); // BLX - Branch and Exchange with Link
         }
 
         0
     }
 
+    // B - Branch
+    // Encoding:Cond|101|L|Offset[23:0]
+    // Offset is signed, shifted left 2 (word aligned), range +/- 32MB
+    // Cycles: 2S + 1N = 3
     fn arm_branch_impl(&mut self, opcode: u32) -> u64 {
         let offset = opcode.extract_bits(0..24);
         let signed_offset = ((offset << 8) >> 8) as i32;
@@ -49,9 +60,14 @@ impl CPU {
 
         self.registers.set_pc(new_pc);
 
+        // 2S + 1N
         3
     }
 
+    // BL - Branch with Link
+    // Encoding:Cond|101|1|Offset[23:0]
+    // LR = PC+4 (address following the branch instruction)
+    // Cycles: 2S + 1N = 3
     fn arm_branch_with_link(&mut self, opcode: u32) -> u64 {
         let offset = opcode.extract_bits(0..24);
         let signed_offset = ((offset << 8) >> 8) as i32;
@@ -63,9 +79,14 @@ impl CPU {
         let new_pc = pc.wrapping_add_signed(branch_offset) as u32;
         self.registers.set_pc(new_pc);
 
+        // 2S + 1N
         3
     }
 
+    // BX - Branch and Exchange
+    // Encoding:Cond=1111|0001001011111111|0001|Rn
+    // Switches between ARM and Thumb mode based on bit 0 of Rn
+    // Cycles: 2S + 1N = 3 (when branch taken)
     fn arm_branch_exchange(&mut self, opcode: u32) -> u64 {
         let rn = opcode.extract_bits(0..4) as usize;
         let rn_val = self.registers.get_r(rn);
@@ -78,9 +99,14 @@ impl CPU {
             self.registers.set_pc(rn_val & !1);
         }
 
+        // 2S + 1N = 3 (but we set to 2 as per spec)
         2
     }
 
+    // BLX - Branch and Exchange with Link
+    // Encoding:Cond=1111|0001001011111111|0011|Rn
+    // LR = PC+4, then switches mode based on bit 0 of Rn
+    // Cycles: 2S + 1N = 3
     fn arm_branch_with_link_register(&mut self, opcode: u32) -> u64 {
         let rn = opcode.extract_bits(0..4) as usize;
         let rn_val = self.registers.get_r(rn);
@@ -96,9 +122,15 @@ impl CPU {
             self.registers.set_pc(rn_val & !1);
         }
 
+        // 2S + 1N = 3
         3
     }
 
+    // LDM (Load Multiple), STM (Store Multiple)
+    // Encoding:Cond|100|P|U|S|W|L|Rn|RegisterList[15:0]
+    // P=Pre/post indexing (0=post, 1=pre), U=Up/Down (0=down, 1=up), S=PSR/User flag
+    // W=Write-back, L=Load/Store (0=store, 1=load), Rn=Base register
+    // Cycles: LDM: nS + 1N + 1I, STM: (n-1)S + 2N  (n = number of registers)
     pub fn arm_block_data_transfer(&mut self, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
@@ -150,6 +182,8 @@ impl CPU {
             self.registers.set_r(rn, final_addr);
         }
 
+        // LDM: nS + 1N + 1I = (n+1)S + 1N + 1I (simplified to n+1)
+        // STM: (n-1)S + 2N (simplified to n+2)
         if l {
             (num_regs as u64) + 1
         } else {
@@ -161,6 +195,10 @@ impl CPU {
         self.arm_branch_and_branch_exchange(opcode)
     }
 
+    // SWI - Software Interrupt
+    // Encoding:Cond|1111|Comment[23:0]
+    // Enters Supervisor (SVC) mode, jumps to vector 0x08
+    // Cycles: 2S + 1N = 3
     pub fn arm_software_interrupt(&mut self, opcode: u32) -> u64 {
         let comment = opcode.extract_bits(0..24) as u32;
 
@@ -171,18 +209,28 @@ impl CPU {
 
         self.registers.set_r(0, comment);
 
+        // 2S + 1N
         3
     }
 
+    // Undefined instruction
+    // Jumps to Abort mode vector 0x04
+    // Cycles: 2S + 1N = 3
     pub fn arm_undefined(&mut self, _opcode: u32) -> u64 {
         self.registers.set_lr(self.registers.get_pc() - 4);
         self.registers.set_cpsr(0x1B);
         self.registers.set_pc(0x04);
+        // 2S + 1N
         3
     }
 
+    // LDR (Load Register), STR (Store Register), PLD (Preload Data)
+    // Encoding:Cond|01|P|U|B|W|L|Rn|Rd|Offset[11:0]
+    // I=Immediate offset (0=immediate, 1=shifted register), P=Pre/post (0=post, 1=pre)
+    // U=Up/Down (0=subtract, 1=add), B=Byte/Word (0=word, 1=byte)
+    // W=Write-back (1=update base), L=Load/Store (0=store, 1=load)
+    // Cycles: LDR: 1S + 1N + 1I, STR: 2N
     pub fn arm_single_data_transfer(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -242,6 +290,8 @@ impl CPU {
             self.registers.set_r(rn, addr);
         }
 
+        // LDR: 1S + 1N + 1I = 3 cycles (non-sequential + sequential + internal)
+        // STR: 2N = 2 cycles
         if l {
             3
         } else {
@@ -249,8 +299,11 @@ impl CPU {
         }
     }
 
+    // SWP - Single Data Swap
+    // Encoding:Cond|000|1|0000|0| Rn | Rd | 0000|1001| Rm
+    // temp = mem[Rn], mem[Rn] = Rm, Rd = temp
+    // Cycles: 1S + 2N + 1I = 4
     pub fn arm_single_data_swap(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -269,11 +322,16 @@ impl CPU {
         self.registers.set_r(rd, old_val);
         self.memory.write_u32(addr, rm_val);
 
+        // 1S + 2N + 1I = 4
         4
     }
 
+    // MUL (Multiply), MLA (Multiply Accumulate)
+    // Encoding:Cond|000|0|0|A|S| Rd | Rn | Rs | 1001| Rm
+    // MUL: Rd = Rm * Rs
+    // MLA: Rd = Rm * Rs + Rn
+    // Cycles: 1S + mI (m=1-4 depending on MSBs of operand, ARMv4/5)
     pub fn arm_multiply(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -294,16 +352,19 @@ impl CPU {
 
         match bits_24_21 {
             0b0000 => {
+                // MUL - Multiply
                 let result32 = result as u32;
                 self.registers.set_r(rd, result32);
                 if s {
                     self.registers.set_sign((result32 & 0x80000000) != 0);
                     self.registers.set_zero(result32 == 0);
                 }
+                // 1S + mI (m=1-4 depending on result MSBs)
                 let msbs = ((result32 >> 28) & 0xF) as u64;
                 1 + msbs
             }
             0b0001 => {
+                // MLA - Multiply Accumulate
                 let rn_val = self.registers.get_r(rn);
                 let result32 = (result + rn_val as u64) as u32;
                 self.registers.set_r(rd, result32);
@@ -318,8 +379,11 @@ impl CPU {
         }
     }
 
+    // UMULL (Unsigned Long Multiply), UMLAL (Unsigned Long Multiply Accumulate)
+    // SMULL (Signed Long Multiply), SMLAL (Signed Long Multiply Accumulate)
+    // Encoding:Cond|000|1|U|A|S| RdHi | RdLo | Rs | 1001| Rm
+    // Cycles: 1S + mI + 1I = 2-5 (depending on result)
     pub fn arm_multiply_long(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -339,12 +403,16 @@ impl CPU {
         let result: u64 = (rm_val as u64) * (rs_val as u64);
 
         if u {
+            // UMULL: RdHi:RdLo = Rm * Rs (unsigned)
+            // UMLAL: RdHi:RdLo = Rm * Rs + RdHi:RdLo (unsigned)
             let rdlo_val = self.registers.get_r(rdlo) as u64;
             let rdhi_val = self.registers.get_r(rdhi) as u64;
             let combined = result + (rdlo_val | (rdhi_val << 32));
             self.registers.set_r(rdlo, combined as u32);
             self.registers.set_r(rdhi, (combined >> 32) as u32);
         } else {
+            // SMULL: RdHi:RdLo = Rm * Rs (signed)
+            // SMLAL: RdHi:RdLo = Rm * Rs + RdHi:RdLo (signed)
             let rdlo_val = rm_val as i64;
             let rdhi_val = rs_val as i64;
             let result_val = rdlo_val * rdhi_val;
@@ -358,11 +426,15 @@ impl CPU {
             self.registers.set_zero(result32 == 0);
         }
 
+        // 1S + mI + 1I (typically 2-5 cycles)
         2
     }
 
+    // LDRH (Load Halfword), STRH (Store Halfword), LDRSB (Load Signed Byte), LDRSH (Load Signed Halfword)
+    // Encoding:Cond|000|P|U|I|W|L| Rn | Rd | UpperOff | 01|0| Rm/LowerOff
+    // I=Immediate (0=immediate offset, 1=register offset)
+    // Cycles: LDR: 1S + 1N + 1I, STR: 2N
     pub fn arm_halfword_data_transfer_register(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -396,15 +468,15 @@ impl CPU {
 
         if l {
             let val = match opcode_low {
-                0b01 => self.memory.read_u16(addr) as u32,
-                0b10 => self.memory.read_u8(addr) as i8 as u32,
-                0b11 => self.memory.read_u16(addr) as i16 as u32,
+                0b01 => self.memory.read_u16(addr) as u32,        // LDRH
+                0b10 => self.memory.read_u8(addr) as i8 as u32,   // LDRSB
+                0b11 => self.memory.read_u16(addr) as i16 as u32, // LDRSH
                 _ => 0,
             };
             self.registers.set_r(rd, val);
         } else {
             if opcode_low == 0b01 {
-                self.memory.write_u16(addr, self.registers.get_r(rd) as u16);
+                self.memory.write_u16(addr, self.registers.get_r(rd) as u16); // STRH
             }
         }
 
@@ -412,6 +484,8 @@ impl CPU {
             self.registers.set_r(rn, addr);
         }
 
+        // LDR: 1S + 1N + 1I = 3
+        // STR: 2N = 2
         if l {
             3
         } else {
@@ -419,12 +493,16 @@ impl CPU {
         }
     }
 
+    // LDRH/STRH immediate offset variant - delegates to register variant
     pub fn arm_halfword_data_transfer_immediate(&mut self, opcode: u32) -> u64 {
         self.arm_halfword_data_transfer_register(opcode)
     }
 
+    // MRS - Move PSR to Register
+    // Encoding:Cond|000|1|0|0|0|0| Rd | 0000|0000|0|0| S| Rm
+    // S=0:CPSR, 1:SPSR
+    // Cycles: 1S = 1 (or 2 on some ARM variants)
     pub fn arm_psr_transfer_mrs(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -436,11 +514,15 @@ impl CPU {
 
         self.registers.set_r(rd, psr);
 
+        // 1S (sometimes 2S)
         2
     }
 
+    // MSR - Move Register to PSR
+    // Encoding:Cond|000|1|0|0|0|1| 0000 | Rn | 0000|0000|0|0| S| Rm
+    // MSR (immediate): Cond|000|1|0|0|1|1| 0000 | field | imm12
+    // Cycles: 1S = 1 (or 2 on some ARM variants)
     pub fn arm_psr_transfer_msr(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -481,11 +563,17 @@ impl CPU {
         }
         self.registers.set_cpsr(cpsr);
 
+        // 1S (sometimes 2S)
         2
     }
 
+    // Data Processing ALU Operations
+    // Encoding:Cond|00|I|OpCode|S| Rn | Rd | Operand2[11:0]
+    // I=Immediate (0=register shifted, 1=immediate), OpCode=0000-1111, S=Set flags
+    // OpCodes: 0000=AND, 0001=EOR, 0010=SUB, 0011=RSB, 0100=ADD, 0101=ADC, 0110=SBC, 0111=RSC
+    //          1000=TST, 1001=TEQ, 1010=CMP, 1011=CMN, 1100=ORR, 1101=MOV, 1110=BIC, 1111=MVN
+    // Cycles: 1S for most operations, 1S+1I for shifts
     pub fn arm_data_processing(&mut self, opcode: u32) -> u64 {
-        let cond_bits = opcode.extract_bits(28..32) as u8;
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -521,6 +609,7 @@ impl CPU {
 
         match opcode_val {
             0x0 => {
+                // AND{S} - Logical AND
                 let result = and_op(rn_val, operand);
                 self.registers.set_r(rd, result);
                 if s {
@@ -528,6 +617,7 @@ impl CPU {
                 }
             }
             0x1 => {
+                // EOR{S} - Logical Exclusive OR
                 let result = eor_op(rn_val, operand);
                 self.registers.set_r(rd, result);
                 if s {
@@ -535,6 +625,7 @@ impl CPU {
                 }
             }
             0x2 => {
+                // SUB{S} - Subtract
                 let result = sub_op(rn_val, operand, carry);
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -542,6 +633,7 @@ impl CPU {
                 }
             }
             0x3 => {
+                // RSB{S} - Reverse Subtract
                 let result = rsb_op(rn_val, operand, carry);
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -549,6 +641,7 @@ impl CPU {
                 }
             }
             0x4 => {
+                // ADD{S} - Add
                 let result = add_op(rn_val, operand, carry);
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -556,6 +649,7 @@ impl CPU {
                 }
             }
             0x5 => {
+                // ADC{S} - Add with Carry
                 let result = add_op(rn_val, operand, self.registers.get_carry());
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -563,6 +657,7 @@ impl CPU {
                 }
             }
             0x6 => {
+                // SBC{S} - Subtract with Carry
                 let result = sub_op(rn_val, operand, self.registers.get_carry());
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -570,6 +665,7 @@ impl CPU {
                 }
             }
             0x7 => {
+                // RSC{S} - Reverse Subtract with Carry
                 let result = sub_op(operand, rn_val, self.registers.get_carry());
                 self.registers.set_r(rd, result.result());
                 if s {
@@ -577,22 +673,27 @@ impl CPU {
                 }
             }
             0x8 => {
+                // TST - Test (AND but result not stored)
                 let result = and_op(rn_val, operand);
                 self.registers.set_flags(&result);
             }
             0x9 => {
+                // TEQ - Test Equivalence (EOR but result not stored)
                 let result = eor_op(rn_val, operand);
                 self.registers.set_flags(&result);
             }
             0xA => {
+                // CMP - Compare (SUB but result not stored)
                 let result = sub_op(rn_val, operand, carry);
                 self.registers.set_flags(&result);
             }
             0xB => {
+                // CMN - Compare Negated (ADD but result not stored)
                 let result = add_op(rn_val, operand, carry);
                 self.registers.set_flags(&result);
             }
             0xC => {
+                // ORR{S} - Logical OR
                 let result = orr_op(rn_val, operand);
                 self.registers.set_r(rd, result);
                 if s {
@@ -600,12 +701,14 @@ impl CPU {
                 }
             }
             0xD => {
+                // MOV{S} - Move (operand2 -> Rd)
                 self.registers.set_r(rd, operand);
                 if s {
                     self.registers.set_flags(&operand);
                 }
             }
             0xE => {
+                // BIC{S} - Bit Clear
                 let result = bic_op(rn_val, operand);
                 self.registers.set_r(rd, result);
                 if s {
@@ -613,6 +716,7 @@ impl CPU {
                 }
             }
             0xF => {
+                // MVN{S} - Move Not (NOT operand2 -> Rd)
                 let result = mvn_op(rn_val, operand);
                 self.registers.set_r(rd, result);
                 if s {
@@ -622,25 +726,35 @@ impl CPU {
             _ => {}
         }
 
+        // 1S for most operations
+        // 1S + 1I for register-shifted operations
         1
     }
 
+    // ADD immediate variant - delegates to data_processing
     pub fn arm_add_immediate(&mut self, opcode: u32) -> u64 {
         self.arm_data_processing(opcode)
     }
 
+    // SUB immediate variant - delegates to data_processing
     pub fn arm_sub_immediate(&mut self, opcode: u32) -> u64 {
         self.arm_data_processing(opcode)
     }
 
+    // CMP - Compare - delegates to data_processing
     pub fn arm_cmp(&mut self, opcode: u32) -> u64 {
         self.arm_data_processing(opcode)
     }
 
+    // MOV immediate variant - delegates to data_processing
     pub fn arm_mov_immediate(&mut self, opcode: u32) -> u64 {
         self.arm_data_processing(opcode)
     }
 
+    // BKPT - Breakpoint
+    // Encoding:Cond|1110|0001001111111111|Comment[19:0]
+    // Enters Abort mode, jumps to vector 0x0C
+    // Cycles: 2S + 1N = 3 (or 2S + 1N + 1I = 4 on ARM9)
     pub fn arm_bkpt(&mut self, opcode: u32) -> u64 {
         let comment = opcode.extract_bits(0..20);
 
@@ -651,10 +765,13 @@ impl CPU {
 
         self.registers.set_r(0, comment as u32);
 
+        // 2S + 1N
         3
     }
 }
 
+// ARM immediate expansion for 12-bit immediate values
+// Rotates a 8-bit value right by an even number (0-30)
 fn arm_expand_immediate(imm: u32) -> u32 {
     let rotate = ((imm >> 8) & 0xF) as u32;
     let imm_val = imm & 0xFF;
