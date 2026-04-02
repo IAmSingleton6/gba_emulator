@@ -46,4 +46,12 @@ impl MemoryAccess for Memory {
     fn write_u8(&mut self, address: u32, value: u8) {
         todo!()
     }
+    
+    fn read_u16(&self, address: u32) -> u16 {
+        todo!()
+    }
+    
+    fn write_u16(&mut self, address: u32, value: u16) {
+        todo!()
+    }
 }

@@ -214,9 +214,7 @@ impl CPU {
                 self.registers.set_r(rd, result);
                 1
             }
-            _ => {
-                panic!("Invalid ALU operation")
-            }
+            _ => { panic!("Invalid ALU operation") }
         };
 
         return cycles
@@ -367,9 +365,7 @@ impl CPU {
                 self.registers.set_r(rd, data);
                 3
             },
-            _ => {
-                panic!("Invalid opcode type in load/store sign-extended byte/halfword instruction");
-            }
+            _ => { panic!("Invalid opcode type in load/store sign-extended byte/halfword instruction"); }
         };
 
         // 1S+1N+1I for LDR, or 2N for STR
@@ -406,9 +402,7 @@ impl CPU {
                 self.registers.set_r(rd, data);
                 3
             },
-            _ => {
-                panic!("Invalid opcode type in load/store with immediate offset instruction");
-            }
+            _ => { panic!("Invalid opcode type in load/store with immediate offset instruction"); }
         };
 
         // 1S+1N+1I for LDR, or 2N for STR
