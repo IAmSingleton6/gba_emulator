@@ -23,7 +23,7 @@ pub enum Condition {
     GreaterThan = 0xC,
     LessEqual = 0xD,
     Always = 0xE,
-    #[num_enum(catch_all)] 
+    #[num_enum(catch_all)]
     Invalid(u16),
 }
 
@@ -100,7 +100,7 @@ pub const fn add_with_carry(v1: u32, v2: u32, carry: bool) -> ArithResult {
 }
 
 pub struct MulResult {
-    result: u32
+    result: u32,
 }
 
 impl MulResult {
