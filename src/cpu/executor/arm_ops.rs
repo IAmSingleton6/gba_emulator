@@ -19,7 +19,9 @@ impl CPU {
     pub fn arm_branch_and_branch_exchange(&mut self, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
-        if !should_branch(&self.registers, cond) {
+        let should_exec = should_branch(&self.registers, cond);
+
+        if !should_exec {
             return 1;
         }
 
@@ -52,13 +54,15 @@ impl CPU {
     // Cycles: 2S + 1N = 3
     fn arm_branch_impl(&mut self, opcode: u32) -> u64 {
         let offset = opcode.extract_bits(0..24);
-        let signed_offset = ((offset << 8) >> 8) as i32;
+        let signed_offset = ((offset as i32) << 8) >> 8;
         let branch_offset = signed_offset << 2;
 
-        let pc = self.registers.get_visible_pc();
-        let new_pc = pc.wrapping_add_signed(branch_offset) as u32;
+        // PC after fetch points to instruction AFTER the branch
+        // ARM branch uses: PC + 4 + offset*4
+        let pc = self.registers.get_pc();
+        let target = pc.wrapping_add(4).wrapping_add_signed(branch_offset);
 
-        self.registers.set_pc(new_pc);
+        self.registers.set_pc(target);
 
         // 2S + 1N
         3
@@ -684,6 +688,7 @@ impl CPU {
             }
             0xA => {
                 // CMP - Compare (SUB but result not stored)
+                let carry = self.registers.get_carry();
                 let result = sub_op(rn_val, operand, carry);
                 self.registers.set_flags(&result);
             }

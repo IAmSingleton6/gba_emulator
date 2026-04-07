@@ -19,6 +19,14 @@ impl PPU {
     }
 
     pub fn render(&mut self, memory: &dyn MemoryAccess) {
+        // Check palette and VRAM
+        let palette0 = memory.read_u16(0x05000000);
+        let palette2 = memory.read_u16(0x05000002);
+        let vram0 = memory.read_u16(0x06000000);
+        let vram4000 = memory.read_u16(0x06400000);
+        eprintln!("Render: Palette[0]=0x{:04X} Palette[2]=0x{:04X} VRAM[0]=0x{:04X} VRAM[0x4000]=0x{:04X}", 
+            palette0, palette2, vram0, vram4000);
+
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let addr = (y * SCREEN_WIDTH + x) * 2;

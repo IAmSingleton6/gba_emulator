@@ -19,14 +19,19 @@ struct GBAApp {
 
 impl GBAApp {
     fn new() -> Self {
-        GBAApp {
+        let mut app = GBAApp {
             memory: None,
             cpu: None,
             ppu: PPU::new(),
             rom_path: String::new(),
             error_message: None,
             running: false,
-        }
+        };
+
+        // Auto-load stripes.gba for testing
+        app.load_rom("tests/roms/ppu/stripes.gba");
+
+        app
     }
 
     fn load_rom(&mut self, path: &str) {
@@ -34,11 +39,13 @@ impl GBAApp {
 
         match memory.load_rom(path) {
             Ok(()) => {
-                let cpu = CPU::new(Box::new(memory.clone()));
+                let mut cpu = CPU::new(Box::new(memory.clone()));
+                cpu.initialize_gba();
 
                 self.memory = Some(memory);
                 self.cpu = Some(cpu);
                 self.error_message = None;
+                self.running = true;
             }
             Err(e) => {
                 self.error_message = Some(e);
@@ -53,9 +60,14 @@ impl GBAApp {
     }
 
     fn run_frame(&mut self) {
-        for _ in 0..1000 {
+        if !self.running {
+            return;
+        }
+
+        for _ in 0..100000 {
             self.step();
         }
+
         if let Some(ref memory) = self.memory {
             self.ppu.render(memory);
         }

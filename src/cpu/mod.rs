@@ -8,6 +8,9 @@ pub mod executor;
 mod operations;
 mod registers;
 
+pub static DEBUG_PRINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static DEBUG_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
 pub struct CPU {
     registers: registers::Registers,
     memory: Box<dyn MemoryAccess>,
@@ -23,9 +26,33 @@ impl CPU {
         }
     }
 
+    pub fn initialize_gba(&mut self) {
+        self.registers.set_pc(0x08000000);
+        self.registers.set_thumb_state(false);
+
+        self.registers.set_r(13, 0x03007F00);
+        self.registers.set_r(14, 0x08000000);
+
+        // CPSR: N=0, Z=0, C=0, V=0, T=0 (ARM mode), Mode=0x10 (Supervisor)
+        self.registers.set_cpsr(0x00000010);
+    }
+
     pub fn fetch_decode_execute(&mut self) {
         let is_in_thumb_mode: bool = self.is_in_thumb_mode();
+        let pc: u32 = self.registers.get_pc();
         let opcode: u32 = self.fetch(is_in_thumb_mode);
+
+        let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        if DEBUG_PRINT.load(std::sync::atomic::Ordering::SeqCst) && count < 100 {
+            eprintln!(
+                "[{:>3}] PC: 0x{:08X} mode:{} opcode: 0x{:08X}",
+                count + 1,
+                pc,
+                if is_in_thumb_mode { "T" } else { "A" },
+                opcode
+            );
+        }
 
         let cycles = if is_in_thumb_mode {
             let executor: ThumbExecutor = decode_thumb(opcode as u16);
@@ -46,16 +73,40 @@ impl CPU {
         instruction
     }
 
+    pub fn get_pc(&self) -> u32 {
+        self.registers.get_pc()
+    }
+
+    pub fn set_pc(&mut self, pc: u32) {
+        self.registers.set_pc(pc);
+    }
+
     pub fn is_in_thumb_mode(&self) -> bool {
         self.registers.is_thumb()
     }
 
-    fn switch_to_thumb(&mut self) {
+    pub fn get_cpsr(&self) -> u32 {
+        self.registers.get_cpsr()
+    }
+
+    pub fn switch_to_thumb(&mut self) {
         self.registers.set_thumb_state(true);
     }
 
-    fn switch_to_arm(&mut self) {
+    pub fn switch_to_arm(&mut self) {
         self.registers.set_thumb_state(false);
+    }
+
+    pub fn get_registers(&self) -> &registers::Registers {
+        &self.registers
+    }
+
+    pub fn set_debug_mode(enabled: bool) {
+        DEBUG_PRINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn reset_debug_count() {
+        DEBUG_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn read_memory(&self, address: u32) -> u32 {
