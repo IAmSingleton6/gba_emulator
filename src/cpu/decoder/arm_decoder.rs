@@ -24,75 +24,75 @@ impl ArmDecoder {
     }
 }
 
-const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14 ]= [
-        ArmDecoder {
-            format: 0b0000_0001_0010_1111_1111_1111_0001_0000,
-            mask: 0b0000_1111_1111_1111_1111_1111_1111_0000,
-            executor: CPU::arm_branch_and_branch_exchange,
-        },
-        ArmDecoder {
-            format: 0b0000_1000_0000_0000_0000_0000_0000_0000,
-            mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
-            executor: CPU::arm_block_data_transfer,
-        },
-        ArmDecoder {
-            format: 0b0000_1010_0000_0000_0000_0000_0000_0000,
-            mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
-            executor: CPU::arm_branch,
-        },
-        ArmDecoder {
-            format: 0b0000_1111_0000_0000_0000_0000_0000_0000,
-            mask: 0b0000_1111_0000_0000_0000_0000_0000_0000,
-            executor: CPU::arm_software_interrupt,
-        },
-        ArmDecoder {
-            format: 0b0000_0110_0000_0000_0000_0000_0001_0000,
-            mask: 0b0000_1110_0000_0000_0000_0000_0001_0000,
-            executor: CPU::arm_undefined,
-        },
-        ArmDecoder {
-            format: 0b0000_0100_0000_0000_0000_0000_0000_0000,
-            mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
-            executor: CPU::arm_single_data_transfer,
-        },
-        ArmDecoder {
-            format: 0b0000_0001_0000_0000_0000_0000_1001_0000,
-            mask: 0b0000_1111_1000_0000_0000_1111_1111_0000,
-            executor: CPU::arm_single_data_swap,
-        },
-        ArmDecoder {
-            format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
-            mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
-            executor: CPU::arm_multiply,
-        },
-        ArmDecoder {
-            format: 0b0000_0000_1000_0000_0000_0000_1001_0000,
-            mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
-            executor: CPU::arm_multiply_long,
-        },
-        ArmDecoder {
-            format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
-            mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
-            executor: CPU::arm_halfword_data_transfer_register,
-        },
-        ArmDecoder {
-            format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
-            mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
-            executor: CPU::arm_halfword_data_transfer_immediate,
-        },
-        ArmDecoder {
-            format: 0b0000_0001_0000_1111_0000_0000_0000_0000,
-            mask: 0b0000_1111_1011_1111_0000_0000_0000_0000,
-            executor: CPU::arm_psr_transfer_mrs,
-        },
-        ArmDecoder {
-            format: 0b0000_0001_0010_0000_1111_0000_0000_0000,
-            mask: 0b0000_1101_1011_0000_1111_0000_0000_0000,
-            executor: CPU::arm_psr_transfer_msr,
-        },
-        ArmDecoder {
-            format: 0b0000_0000_0000_0000_0000_0000_0000_0000,
-            mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
-            executor: CPU::arm_data_processing,
-        },
-    ];
+const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
+    ArmDecoder {
+        format: 0b0000_0001_0010_1111_1111_1111_0001_0000,
+        mask: 0b0000_1111_1111_1111_1111_1111_1111_0000,
+        executor: CPU::arm_branch_and_branch_exchange,
+    },
+    ArmDecoder {
+        format: 0b0000_1000_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_block_data_transfer,
+    },
+    ArmDecoder {
+        format: 0b0000_1010_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_branch,
+    },
+    ArmDecoder {
+        format: 0b0000_1111_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1111_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_software_interrupt,
+    },
+    ArmDecoder {
+        format: 0b0000_0110_0000_0000_0000_0000_0001_0000,
+        mask: 0b0000_1110_0000_0000_0000_0000_0001_0000,
+        executor: CPU::arm_undefined,
+    },
+    ArmDecoder {
+        format: 0b0000_0100_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_single_data_transfer,
+    },
+    ArmDecoder {
+        format: 0b0000_0001_0000_0000_0000_0000_1001_0000,
+        mask: 0b0000_1111_1000_0000_0000_1111_1111_0000,
+        executor: CPU::arm_single_data_swap,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
+        mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
+        executor: CPU::arm_multiply,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_1000_0000_0000_0000_1001_0000,
+        mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
+        executor: CPU::arm_multiply_long,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
+        mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
+        executor: CPU::arm_halfword_data_transfer_register,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
+        mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
+        executor: CPU::arm_halfword_data_transfer_immediate,
+    },
+    ArmDecoder {
+        format: 0b0000_0001_0000_1111_0000_0000_0000_0000,
+        mask: 0b0000_1111_1011_1111_0000_0000_0000_0000,
+        executor: CPU::arm_psr_transfer_mrs,
+    },
+    ArmDecoder {
+        format: 0b0000_0001_0010_0000_1111_0000_0000_0000,
+        mask: 0b0000_1101_1011_0000_1111_0000_0000_0000,
+        executor: CPU::arm_psr_transfer_msr,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_data_processing,
+    },
+];

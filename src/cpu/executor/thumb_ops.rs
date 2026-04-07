@@ -1,5 +1,8 @@
-use crate::cpu::CPU; 
-use crate::cpu::operations::{Condition, add_op, and_op, asr_op, eor_op, lsl_op, lsr_op, mul_op, mvn_op, ror_op, should_branch, sub_op};
+use crate::cpu::operations::{
+    add_op, and_op, asr_op, eor_op, lsl_op, lsr_op, mul_op, mvn_op, ror_op, should_branch, sub_op,
+    Condition,
+};
+use crate::cpu::CPU;
 use simple_bits::BitsExt;
 
 pub type ThumbExecutor = fn(&mut CPU, u16) -> u64;

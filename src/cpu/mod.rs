@@ -11,7 +11,7 @@ mod registers;
 pub struct CPU {
     registers: registers::Registers,
     memory: Box<dyn MemoryAccess>,
-    total_cycles: u64
+    total_cycles: u64,
 }
 
 impl CPU {
@@ -27,7 +27,7 @@ impl CPU {
         let is_in_thumb_mode: bool = self.is_in_thumb_mode();
         let opcode: u32 = self.fetch(is_in_thumb_mode);
 
-        let cycles= if is_in_thumb_mode {
+        let cycles = if is_in_thumb_mode {
             let executor: ThumbExecutor = decode_thumb(opcode as u16);
             executor(self, opcode as u16)
         } else {
@@ -41,7 +41,8 @@ impl CPU {
     pub fn fetch(&mut self, is_in_thumb_mode: bool) -> u32 {
         let pc: u32 = self.registers.get_pc();
         let instruction = self.memory.read_u32(pc);
-        self.registers.set_pc(pc.wrapping_add(if is_in_thumb_mode { 2 } else { 4 }));
+        self.registers
+            .set_pc(pc.wrapping_add(if is_in_thumb_mode { 2 } else { 4 }));
         instruction
     }
 
@@ -58,10 +59,12 @@ impl CPU {
     }
 
     fn read_memory(&self, address: u32) -> u32 {
-        self.memory.read_u32(address)  
+        self.memory.read_u32(address)
     }
 
     fn write_memory(&mut self, address: u32, value: u32) {
-        self.memory.write_u32(address, value)  
+        self.memory.write_u32(address, value)
     }
+
+    pub fn store_prefetch(&mut self) {}
 }

@@ -41,8 +41,12 @@ pub fn should_branch(registers: &Registers, condition: Condition) -> bool {
         Condition::LowerSame => !registers.get_carry() || registers.get_zero(),
         Condition::GreaterEqual => registers.get_sign() == registers.get_overflow(),
         Condition::LessThan => registers.get_sign() != registers.get_overflow(),
-        Condition::GreaterThan => !registers.get_zero() && registers.get_sign() == registers.get_overflow(),
-        Condition::LessEqual => registers.get_zero() || registers.get_sign() != registers.get_overflow(),
+        Condition::GreaterThan => {
+            !registers.get_zero() && registers.get_sign() == registers.get_overflow()
+        }
+        Condition::LessEqual => {
+            registers.get_zero() || registers.get_sign() != registers.get_overflow()
+        }
         Condition::Always => true,
         Condition::Invalid(_) => panic!("Encountered invalid conditional"),
     }
