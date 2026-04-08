@@ -5,16 +5,12 @@ const SCREEN_HEIGHT: usize = 160;
 
 pub struct PPU {
     pub framebuffer: Vec<u8>,
-    vram: Vec<u8>,
-    palette: Vec<u8>,
 }
 
 impl PPU {
     pub fn new() -> Self {
         PPU {
             framebuffer: vec![0; SCREEN_WIDTH * SCREEN_HEIGHT * 4],
-            vram: vec![0; 96 * 1024],
-            palette: vec![0; 1024],
         }
     }
 

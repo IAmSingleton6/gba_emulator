@@ -42,18 +42,6 @@ impl CPU {
         let pc: u32 = self.registers.get_pc();
         let opcode: u32 = self.fetch(is_in_thumb_mode);
 
-        let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
-        if DEBUG_PRINT.load(std::sync::atomic::Ordering::SeqCst) && count < 100 {
-            eprintln!(
-                "[{:>3}] PC: 0x{:08X} mode:{} opcode: 0x{:08X}",
-                count + 1,
-                pc,
-                if is_in_thumb_mode { "T" } else { "A" },
-                opcode
-            );
-        }
-
         let cycles = if is_in_thumb_mode {
             let executor: ThumbExecutor = decode_thumb(opcode as u16);
             executor(self, opcode as u16)
@@ -115,6 +103,10 @@ impl CPU {
 
     fn write_memory(&mut self, address: u32, value: u32) {
         self.memory.write_u32(address, value)
+    }
+
+    pub fn get_memory(&self) -> &dyn MemoryAccess {
+        self.memory.as_ref()
     }
 
     pub fn store_prefetch(&mut self) {}

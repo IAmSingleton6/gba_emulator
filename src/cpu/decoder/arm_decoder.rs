@@ -51,6 +51,16 @@ const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
         executor: CPU::arm_undefined,
     },
     ArmDecoder {
+        format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
+        mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
+        executor: CPU::arm_halfword_data_transfer_immediate,
+    },
+    ArmDecoder {
+        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
+        mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
+        executor: CPU::arm_halfword_data_transfer_register,
+    },
+    ArmDecoder {
         format: 0b0000_0100_0000_0000_0000_0000_0000_0000,
         mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
         executor: CPU::arm_single_data_transfer,
@@ -69,16 +79,6 @@ const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
         format: 0b0000_0000_1000_0000_0000_0000_1001_0000,
         mask: 0b0000_1111_1000_0000_0000_0000_1111_0000,
         executor: CPU::arm_multiply_long,
-    },
-    ArmDecoder {
-        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
-        mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
-        executor: CPU::arm_halfword_data_transfer_register,
-    },
-    ArmDecoder {
-        format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
-        mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
-        executor: CPU::arm_halfword_data_transfer_immediate,
     },
     ArmDecoder {
         format: 0b0000_0001_0000_1111_0000_0000_0000_0000,

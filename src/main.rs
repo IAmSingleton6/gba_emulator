@@ -68,8 +68,8 @@ impl GBAApp {
             self.step();
         }
 
-        if let Some(ref memory) = self.memory {
-            self.ppu.render(memory);
+        if let Some(ref cpu) = self.cpu {
+            self.ppu.render(cpu.get_memory());
         }
     }
 }

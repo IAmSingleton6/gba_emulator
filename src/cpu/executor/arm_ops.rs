@@ -435,8 +435,9 @@ impl CPU {
     }
 
     // LDRH (Load Halfword), STRH (Store Halfword), LDRSB (Load Signed Byte), LDRSH (Load Signed Halfword)
-    // Encoding:Cond|000|P|U|I|W|L| Rn | Rd | UpperOff | 01|0| Rm/LowerOff
-    // I=Immediate (0=immediate offset, 1=register offset)
+    // Encoding A1: cond|000|P|U|I|W|L| Rn | Rd | Rs | 01|0| Rm/LowerOff
+    // Encoding A2: cond|000|P|U|I(0)|W|L| Rn | Rd | imm4Hi | 1001 | imm4Lo
+    // I=Immediate (0=immediate, 1=register)
     // Cycles: LDR: 1S + 1N + 1I, STR: 2N
     pub fn arm_halfword_data_transfer_register(&mut self, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
@@ -453,7 +454,7 @@ impl CPU {
         let rn = opcode.extract_bits(16..20) as usize;
         let rd = opcode.extract_bits(12..16) as usize;
         let upper_offset = opcode.extract_bits(8..12);
-        let opcode_low = opcode.extract_bits(5..7);
+        let opcode_low: u32 = opcode.extract_bits(4..8);
         let rm = opcode.extract_bits(0..4) as usize;
 
         let base = self.registers.get_r(rn);
@@ -472,15 +473,16 @@ impl CPU {
 
         if l {
             let val = match opcode_low {
-                0b01 => self.memory.read_u16(addr) as u32,        // LDRH
-                0b10 => self.memory.read_u8(addr) as i8 as u32,   // LDRSB
-                0b11 => self.memory.read_u16(addr) as i16 as u32, // LDRSH
+                0b0001 => self.memory.read_u16(addr) as u32,      // LDRH
+                0b0010 => self.memory.read_u8(addr) as i8 as u32, // LDRSB
+                0b0011 => self.memory.read_u16(addr) as i16 as u32, // LDRSH
                 _ => 0,
             };
             self.registers.set_r(rd, val);
         } else {
-            if opcode_low == 0b01 {
-                self.memory.write_u16(addr, self.registers.get_r(rd) as u16); // STRH
+            if opcode_low == 0b0001 || opcode_low == 0b1001 {
+                // STRH (both immediate and register variants)
+                self.memory.write_u16(addr, self.registers.get_r(rd) as u16);
             }
         }
 
