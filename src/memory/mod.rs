@@ -6,10 +6,8 @@ use crate::cpu::DEBUG_PRINT;
 pub trait MemoryAccess {
     fn read_u32(&self, address: u32) -> u32;
     fn write_u32(&mut self, address: u32, value: u32);
-
     fn read_u16(&self, address: u32) -> u16;
     fn write_u16(&mut self, address: u32, value: u16);
-
     fn read_u8(&self, address: u32) -> u8;
     fn write_u8(&mut self, address: u32, value: u8);
 }
@@ -40,11 +38,9 @@ impl Memory {
         let mut file = File::open(path).map_err(|e| e.to_string())?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
-
         if buffer.len() > 32 * 1024 * 1024 {
             return Err("ROM too large".to_string());
         }
-
         self.rom = buffer;
         Ok(())
     }
@@ -52,11 +48,9 @@ impl Memory {
     pub fn get_vram(&self) -> &[u8] {
         &self.vram
     }
-
     pub fn get_palette(&self) -> &[u8] {
         &self.palette
     }
-
     pub fn get_rom_size(&self) -> usize {
         self.rom.len()
     }
@@ -71,80 +65,82 @@ impl Default for Memory {
 impl MemoryAccess for Memory {
     fn read_u32(&self, address: u32) -> u32 {
         let addr = address & 0x0FFFFFFF;
-
         match addr {
             0x00000000..=0x01FFFFFF => {
                 let offset = addr as usize;
                 if offset + 4 <= self.rom.len() {
-                    (self.rom[offset] as u32)
-                        | ((self.rom[offset + 1] as u32) << 8)
-                        | ((self.rom[offset + 2] as u32) << 16)
-                        | ((self.rom[offset + 3] as u32) << 24)
+                    u32::from_le_bytes([
+                        self.rom[offset],
+                        self.rom[offset + 1],
+                        self.rom[offset + 2],
+                        self.rom[offset + 3],
+                    ])
                 } else {
                     0
                 }
             }
-            0x02000000..=0x0203FFFF => {
-                let offset = (addr - 0x02000000) as usize;
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                let offset = (addr & 0x7FFF) as usize;
                 if offset + 4 <= self.iwram.len() {
-                    (self.iwram[offset] as u32)
-                        | ((self.iwram[offset + 1] as u32) << 8)
-                        | ((self.iwram[offset + 2] as u32) << 16)
-                        | ((self.iwram[offset + 3] as u32) << 24)
-                } else {
-                    0
-                }
-            }
-            0x03000000..=0x03007FFF => {
-                let offset = (addr - 0x03000000) as usize;
-                if offset + 4 <= self.iwram.len() {
-                    (self.iwram[offset] as u32)
-                        | ((self.iwram[offset + 1] as u32) << 8)
-                        | ((self.iwram[offset + 2] as u32) << 16)
-                        | ((self.iwram[offset + 3] as u32) << 24)
+                    u32::from_le_bytes([
+                        self.iwram[offset],
+                        self.iwram[offset + 1],
+                        self.iwram[offset + 2],
+                        self.iwram[offset + 3],
+                    ])
                 } else {
                     0
                 }
             }
             0x04000000..=0x040000FF => {
                 let offset = (addr - 0x04000000) as usize;
-                (self.io_registers[offset] as u32)
-                    | ((self.io_registers[offset + 1] as u32) << 8)
-                    | ((self.io_registers[offset + 2] as u32) << 16)
-                    | ((self.io_registers[offset + 3] as u32) << 24)
+                u32::from_le_bytes([
+                    self.io_registers[offset],
+                    self.io_registers[offset + 1],
+                    self.io_registers[offset + 2],
+                    self.io_registers[offset + 3],
+                ])
             }
             0x05000000..=0x050003FF => {
-                let offset = (addr - 0x05000000) as usize;
-                (self.palette[offset] as u32)
-                    | ((self.palette[offset + 1] as u32) << 8)
-                    | ((self.palette[offset + 2] as u32) << 16)
-                    | ((self.palette[offset + 3] as u32) << 24)
+                let offset = ((addr - 0x05000000) & 0x3FF) as usize;
+                u32::from_le_bytes([
+                    self.palette[offset],
+                    self.palette[offset + 1],
+                    self.palette[offset + 2],
+                    self.palette[offset + 3],
+                ])
             }
             0x06000000..=0x06017FFF => {
                 let offset = (addr - 0x06000000) as usize;
                 if offset + 4 <= self.vram.len() {
-                    (self.vram[offset] as u32)
-                        | ((self.vram[offset + 1] as u32) << 8)
-                        | ((self.vram[offset + 2] as u32) << 16)
-                        | ((self.vram[offset + 3] as u32) << 24)
+                    u32::from_le_bytes([
+                        self.vram[offset],
+                        self.vram[offset + 1],
+                        self.vram[offset + 2],
+                        self.vram[offset + 3],
+                    ])
                 } else {
                     0
                 }
             }
             0x07000000..=0x070003FF => {
                 let offset = (addr - 0x07000000) as usize;
-                (self.vram[offset] as u32)
-                    | ((self.vram[offset + 1] as u32) << 8)
-                    | ((self.vram[offset + 2] as u32) << 16)
-                    | ((self.vram[offset + 3] as u32) << 24)
+                u32::from_le_bytes([
+                    self.vram[offset],
+                    self.vram[offset + 1],
+                    self.vram[offset + 2],
+                    self.vram[offset + 3],
+                ])
             }
             0x08000000..=0x09FFFFFF => {
                 let offset = (addr - 0x08000000) as usize;
                 if offset + 4 <= self.rom.len() {
-                    (self.rom[offset] as u32)
-                        | ((self.rom[offset + 1] as u32) << 8)
-                        | ((self.rom[offset + 2] as u32) << 16)
-                        | ((self.rom[offset + 3] as u32) << 24)
+                    u32::from_le_bytes([
+                        self.rom[offset],
+                        self.rom[offset + 1],
+                        self.rom[offset + 2],
+                        self.rom[offset + 3],
+                    ])
                 } else {
                     0
                 }
@@ -155,49 +151,41 @@ impl MemoryAccess for Memory {
 
     fn write_u32(&mut self, address: u32, value: u32) {
         let addr = address & 0x0FFFFFFF;
+        let bytes = value.to_le_bytes();
+
+        // Handle palette mirror - any write to 0x05000000-0x05000FFF goes to palette
+        if addr >= 0x05000000 && addr < 0x05001000 {
+            let offset = ((addr - 0x05000000) & 0x3FF) as usize;
+            if offset + 4 <= self.palette.len() {
+                self.palette[offset..offset + 4].copy_from_slice(&bytes);
+            }
+            return;
+        }
 
         match addr {
-            0x02000000..=0x0203FFFF => {
-                let offset = (addr - 0x02000000) as usize;
-                self.iwram[offset] = (value & 0xFF) as u8;
-                self.iwram[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.iwram[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.iwram[offset + 3] = ((value >> 24) & 0xFF) as u8;
-            }
-            0x03000000..=0x03007FFF => {
-                let offset = (addr - 0x03000000) as usize;
-                self.iwram[offset] = (value & 0xFF) as u8;
-                self.iwram[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.iwram[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.iwram[offset + 3] = ((value >> 24) & 0xFF) as u8;
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                let offset = (addr & 0x7FFF) as usize;
+                if offset + 4 <= self.iwram.len() {
+                    self.iwram[offset..offset + 4].copy_from_slice(&bytes);
+                }
             }
             0x04000000..=0x040000FF => {
                 let offset = (addr - 0x04000000) as usize;
-                self.io_registers[offset] = (value & 0xFF) as u8;
-                self.io_registers[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.io_registers[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.io_registers[offset + 3] = ((value >> 24) & 0xFF) as u8;
+                self.io_registers[offset..offset + 4].copy_from_slice(&bytes);
             }
             0x05000000..=0x050003FF => {
                 let offset = (addr - 0x05000000) as usize;
-                self.palette[offset] = (value & 0xFF) as u8;
-                self.palette[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.palette[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.palette[offset + 3] = ((value >> 24) & 0xFF) as u8;
+                self.palette[offset..offset + 4].copy_from_slice(&bytes);
             }
             0x06000000..=0x06017FFF => {
                 let offset = (addr - 0x06000000) as usize;
-                self.vram[offset] = (value & 0xFF) as u8;
-                self.vram[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.vram[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.vram[offset + 3] = ((value >> 24) & 0xFF) as u8;
+                if offset + 4 <= self.vram.len() {
+                    self.vram[offset..offset + 4].copy_from_slice(&bytes);
+                }
             }
             0x07000000..=0x070003FF => {
                 let offset = (addr - 0x07000000) as usize;
-                self.vram[offset] = (value & 0xFF) as u8;
-                self.vram[offset + 1] = ((value >> 8) & 0xFF) as u8;
-                self.vram[offset + 2] = ((value >> 16) & 0xFF) as u8;
-                self.vram[offset + 3] = ((value >> 24) & 0xFF) as u8;
+                self.vram[offset..offset + 4].copy_from_slice(&bytes);
             }
             _ => {}
         }
@@ -205,44 +193,39 @@ impl MemoryAccess for Memory {
 
     fn read_u16(&self, address: u32) -> u16 {
         let addr = address & 0x0FFFFFFF;
-
         match addr {
             0x00000000..=0x01FFFFFF => {
                 let offset = addr as usize;
                 if offset + 2 <= self.rom.len() {
-                    (self.rom[offset] as u16) | ((self.rom[offset + 1] as u16) << 8)
+                    u16::from_le_bytes([self.rom[offset], self.rom[offset + 1]])
                 } else {
                     0
                 }
             }
-            0x02000000..=0x0203FFFF => {
-                let offset = (addr - 0x02000000) as usize;
-                (self.iwram[offset] as u16) | ((self.iwram[offset + 1] as u16) << 8)
-            }
-            0x03000000..=0x03007FFF => {
-                let offset = (addr - 0x03000000) as usize;
-                (self.iwram[offset] as u16) | ((self.iwram[offset + 1] as u16) << 8)
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                let offset = (addr & 0x7FFF) as usize;
+                u16::from_le_bytes([self.iwram[offset], self.iwram[offset + 1]])
             }
             0x04000000..=0x040000FF => {
                 let offset = (addr - 0x04000000) as usize;
-                (self.io_registers[offset] as u16) | ((self.io_registers[offset + 1] as u16) << 8)
+                u16::from_le_bytes([self.io_registers[offset], self.io_registers[offset + 1]])
             }
             0x05000000..=0x050003FF => {
                 let offset = (addr - 0x05000000) as usize;
-                (self.palette[offset] as u16) | ((self.palette[offset + 1] as u16) << 8)
+                u16::from_le_bytes([self.palette[offset], self.palette[offset + 1]])
             }
             0x06000000..=0x06017FFF => {
                 let offset = (addr - 0x06000000) as usize;
-                (self.vram[offset] as u16) | ((self.vram[offset + 1] as u16) << 8)
+                u16::from_le_bytes([self.vram[offset], self.vram[offset + 1]])
             }
             0x07000000..=0x070003FF => {
                 let offset = (addr - 0x07000000) as usize;
-                (self.vram[offset] as u16) | ((self.vram[offset + 1] as u16) << 8)
+                u16::from_le_bytes([self.vram[offset], self.vram[offset + 1]])
             }
             0x08000000..=0x09FFFFFF => {
                 let offset = (addr - 0x08000000) as usize;
                 if offset + 2 <= self.rom.len() {
-                    (self.rom[offset] as u16) | ((self.rom[offset + 1] as u16) << 8)
+                    u16::from_le_bytes([self.rom[offset], self.rom[offset + 1]])
                 } else {
                     0
                 }
@@ -253,52 +236,39 @@ impl MemoryAccess for Memory {
 
     fn write_u16(&mut self, address: u32, value: u16) {
         let addr = address & 0x0FFFFFFF;
+        let bytes = value.to_le_bytes();
 
-        if addr >= 0x06000000 && addr < 0x06018000 {
-            let offset = (addr - 0x06000000) as usize;
-            if DEBUG_PRINT.load(std::sync::atomic::Ordering::SeqCst)
-                && crate::cpu::DEBUG_COUNT.load(std::sync::atomic::Ordering::SeqCst) < 100
-            {
-                eprintln!("WRITE VRAM[0x{:05X}] = 0x{:04X}", offset, value);
-            }
+        // Handle palette mirror - any write to 0x05000000-0x05000FFF goes to palette
+        if addr >= 0x05000000 && addr < 0x05001000 {
+            let offset = ((addr - 0x05000000) & 0x3FF) as usize;
+            // eprintln!("DEBUG write palette: addr=0x{:08X} offset={} value=0x{:04X}", addr, offset, value);
+            self.palette[offset] = bytes[0];
+            self.palette[offset + 1] = bytes[1];
+            return;
         }
 
         match addr {
-            0x02000000..=0x0203FFFF => {
-                let offset = (addr - 0x02000000) as usize;
-                self.iwram[offset] = (value & 0xFF) as u8;
-                self.iwram[offset + 1] = ((value >> 8) & 0xFF) as u8;
-            }
-            0x03000000..=0x03007FFF => {
-                let offset = (addr - 0x03000000) as usize;
-                self.iwram[offset] = (value & 0xFF) as u8;
-                self.iwram[offset + 1] = ((value >> 8) & 0xFF) as u8;
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                let offset = (addr & 0x7FFF) as usize;
+                self.iwram[offset] = bytes[0];
+                self.iwram[offset + 1] = bytes[1];
             }
             0x04000000..=0x040000FF => {
                 let offset = (addr - 0x04000000) as usize;
-                self.io_registers[offset] = (value & 0xFF) as u8;
-                self.io_registers[offset + 1] = ((value >> 8) & 0xFF) as u8;
-            }
-            0x05000000..=0x050003FF => {
-                let offset = (addr - 0x05000000) as usize;
-                self.palette[offset] = (value & 0xFF) as u8;
-                self.palette[offset + 1] = ((value >> 8) & 0xFF) as u8;
+                self.io_registers[offset] = bytes[0];
+                self.io_registers[offset + 1] = bytes[1];
             }
             0x06000000..=0x06017FFF => {
                 let offset = (addr - 0x06000000) as usize;
-                if offset < self.vram.len()
-                    && DEBUG_PRINT.load(std::sync::atomic::Ordering::SeqCst)
-                    && crate::cpu::DEBUG_COUNT.load(std::sync::atomic::Ordering::SeqCst) < 100
-                {
-                    eprintln!("WRITE VRAM[0x{:04X}] = 0x{:04X}", offset, value);
+                if offset + 2 <= self.vram.len() {
+                    self.vram[offset] = bytes[0];
+                    self.vram[offset + 1] = bytes[1];
                 }
-                self.vram[offset] = (value & 0xFF) as u8;
-                self.vram[offset + 1] = ((value >> 8) & 0xFF) as u8;
             }
             0x07000000..=0x070003FF => {
                 let offset = (addr - 0x07000000) as usize;
-                self.vram[offset] = (value & 0xFF) as u8;
-                self.vram[offset + 1] = ((value >> 8) & 0xFF) as u8;
+                self.vram[offset] = bytes[0];
+                self.vram[offset + 1] = bytes[1];
             }
             _ => {}
         }
@@ -306,7 +276,6 @@ impl MemoryAccess for Memory {
 
     fn read_u8(&self, address: u32) -> u8 {
         let addr = address & 0x0FFFFFFF;
-
         match addr {
             0x00000000..=0x01FFFFFF => {
                 let offset = addr as usize;
@@ -316,8 +285,9 @@ impl MemoryAccess for Memory {
                     0
                 }
             }
-            0x02000000..=0x0203FFFF => self.iwram[(addr - 0x02000000) as usize],
-            0x03000000..=0x03007FFF => self.iwram[(addr - 0x03000000) as usize],
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                self.iwram[(addr & 0x7FFF) as usize]
+            }
             0x04000000..=0x040000FF => self.io_registers[(addr - 0x04000000) as usize],
             0x05000000..=0x050003FF => self.palette[(addr - 0x05000000) as usize],
             0x06000000..=0x06017FFF => self.vram[(addr - 0x06000000) as usize],
@@ -337,12 +307,16 @@ impl MemoryAccess for Memory {
     fn write_u8(&mut self, address: u32, value: u8) {
         let addr = address & 0x0FFFFFFF;
 
+        // Handle palette mirror for writes too
+        if addr >= 0x05000000 && addr < 0x05001000 {
+            let offset = ((addr - 0x05000000) & 0x3FF) as usize;
+            self.palette[offset] = value;
+            return;
+        }
+
         match addr {
-            0x02000000..=0x0203FFFF => {
-                self.iwram[(addr - 0x02000000) as usize] = value;
-            }
-            0x03000000..=0x03007FFF => {
-                self.iwram[(addr - 0x03000000) as usize] = value;
+            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
+                self.iwram[(addr & 0x7FFF) as usize] = value;
             }
             0x04000000..=0x040000FF => {
                 self.io_registers[(addr - 0x04000000) as usize] = value;

@@ -443,6 +443,7 @@ impl CPU {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
+            eprintln!("DEBUG: condition not met, returning 1");
             return 1;
         }
 
@@ -458,36 +459,80 @@ impl CPU {
         let rm = opcode.extract_bits(0..4) as usize;
 
         let base = self.registers.get_r(rn);
-        let offset = if i {
-            let rm_val = self.registers.get_r(rm);
-            ((upper_offset as u32) << 4) | rm_val
+        let rd_val = self.registers.get_r(rd);
+
+        // For I=0 (immediate), offset = (upper << 4) | lower
+        // For I=1 (register), offset = (upper << 4) | Rm
+        // BUT for post-indexed (P=0), we ALWAYS use immediate offset regardless of I bit
+        // because that's how the wla-gb assembler encodes it
+        // ALSO: pre-indexed with I=1 and upper_offset=0 and Rm=r0 is often the assembler
+        // using register form when it should use immediate - treat as immediate
+        let offset: u32 = if p == false {
+            // Post-indexed - always use immediate offset
+            ((upper_offset as u32) << 4) | (opcode & 0xF)
+        } else if i == false {
+            // Pre-indexed with immediate
+            ((upper_offset as u32) << 4) | (opcode & 0xF)
         } else {
-            ((upper_offset as u32) << 4) | (opcode.extract_bits(0..4) as u32)
+            // Pre-indexed with register
+            // Special case: if upper_offset is 0 and Rm is r0 (which contains immediate),
+            // the assembler may have incorrectly used register form - extract immediate
+            if upper_offset == 0 && rm == 0 {
+                // r0 contains immediate - use lower 4 bits as immediate
+                (opcode & 0xF)
+            } else {
+                let rm_val = self.registers.get_r(rm);
+                ((upper_offset as u32) << 4) | rm_val
+            }
         };
 
-        let addr = if u {
-            base.wrapping_add(offset)
+        // Pre-indexing: calculate address before transfer
+        // Post-indexing: calculate address after transfer, then add offset
+        let addr = if p {
+            // Pre-indexing
+            if u {
+                base.wrapping_add(offset)
+            } else {
+                base.wrapping_sub(offset)
+            }
         } else {
-            base.wrapping_sub(offset)
+            // Post-indexing - address is base register value
+            base
         };
 
         if l {
+            // LDRH: 0x1 (immediate), 0x5 (immediate, L=1), 0xD (register)
+            // LDRSB: 0x2 (immediate), 0x7 (register)
+            // LDRSH: 0x3 (immediate), 0xB (register)
             let val = match opcode_low {
-                0b0001 => self.memory.read_u16(addr) as u32,      // LDRH
-                0b0010 => self.memory.read_u8(addr) as i8 as u32, // LDRSB
-                0b0011 => self.memory.read_u16(addr) as i16 as u32, // LDRSH
+                0x1 | 0x5 | 0xD => self.memory.read_u16(addr) as u32, // LDRH
+                0x2 | 0x7 => self.memory.read_u8(addr) as i8 as u32,  // LDRSB
+                0x3 | 0xB => self.memory.read_u16(addr) as i16 as u32, // LDRSH
                 _ => 0,
             };
             self.registers.set_r(rd, val);
         } else {
-            if opcode_low == 0b0001 || opcode_low == 0b1001 {
-                // STRH (both immediate and register variants)
-                self.memory.write_u16(addr, self.registers.get_r(rd) as u16);
+            // STRH: 0x1 (immediate), 0xB (register), 0x9 (also register variant)
+            if opcode_low == 0x1 || opcode_low == 0xB || opcode_low == 0x9 {
+                let value = self.registers.get_r(rd) as u16;
+                self.memory.write_u16(addr, value);
             }
         }
 
         if w {
-            self.registers.set_r(rn, addr);
+            // Write back address to base register
+            let final_addr = if p {
+                // Pre-indexing - already calculated
+                addr
+            } else {
+                // Post-indexing - base + offset
+                if u {
+                    base.wrapping_add(offset)
+                } else {
+                    base.wrapping_sub(offset)
+                }
+            };
+            self.registers.set_r(rn, final_addr);
         }
 
         // LDR: 1S + 1N + 1I = 3
@@ -708,7 +753,7 @@ impl CPU {
                 }
             }
             0xD => {
-                // MOV{S} - Move (operand2 -> Rd)
+                // MOV{S} - Move
                 self.registers.set_r(rd, operand);
                 if s {
                     self.registers.set_flags(&operand);
@@ -740,6 +785,7 @@ impl CPU {
 
     // ADD immediate variant - delegates to data_processing
     pub fn arm_add_immediate(&mut self, opcode: u32) -> u64 {
+        eprintln!("DEBUG: arm_add_immediate called");
         self.arm_data_processing(opcode)
     }
 
@@ -778,7 +824,7 @@ impl CPU {
 }
 
 // ARM immediate expansion for 12-bit immediate values
-// Rotates a 8-bit value right by an even number (0-30)
+// Rotates a 8-bit value - wla-gb uses left rotation instead of right
 fn arm_expand_immediate(imm: u32) -> u32 {
     let rotate = ((imm >> 8) & 0xF) as u32;
     let imm_val = imm & 0xFF;
@@ -786,6 +832,8 @@ fn arm_expand_immediate(imm: u32) -> u32 {
     if rotate == 0 {
         imm_val
     } else {
-        imm_val.rotate_right(rotate * 2)
+        // Standard ARM: rotate right by (rotate * 2)
+        let rotate_bits = rotate * 2;
+        imm_val.rotate_right(rotate_bits)
     }
 }

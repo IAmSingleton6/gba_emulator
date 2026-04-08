@@ -15,27 +15,60 @@ impl PPU {
     }
 
     pub fn render(&mut self, memory: &dyn MemoryAccess) {
-        // Check palette and VRAM
-        let palette0 = memory.read_u16(0x05000000);
-        let palette2 = memory.read_u16(0x05000002);
-        let vram0 = memory.read_u16(0x06000000);
-        let vram4000 = memory.read_u16(0x06400000);
-        eprintln!("Render: Palette[0]=0x{:04X} Palette[2]=0x{:04X} VRAM[0]=0x{:04X} VRAM[0x4000]=0x{:04X}", 
-            palette0, palette2, vram0, vram4000);
+        let dispcnt = memory.read_u32(0x04000000);
+        let bg0cnt = memory.read_u32(0x04000008);
+
+        let bg_enabled = (dispcnt & (1 << 8)) != 0;
+        if !bg_enabled {
+            return;
+        }
+
+        let screen_block = (bg0cnt >> 8) & 0x1F;
+        let color_mode = (bg0cnt >> 7) & 1;
+
+        let screen_base = 0x06000000 + (screen_block as u32) * 0x800;
+        let char_base = 0x06000000 + ((bg0cnt >> 2) & 0xF) as u32 * 0x4000;
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
-                let addr = (y * SCREEN_WIDTH + x) * 2;
-                let color_u16 = memory.read_u16(0x06000000 + addr as u32);
-                let color = self.rgb565_to_rgba8(color_u16);
+                let map_x = x / 8;
+                let map_y = y / 8;
+                let tile_index_addr = screen_base + (map_y as u32 * 32 + map_x as u32) * 2;
+                let tile_entry = memory.read_u16(tile_index_addr);
+
+                let tile_num = tile_entry & 0x3FF;
+                let palette_num = (tile_entry >> 10) & 0xF;
+
+                let tile_addr = char_base + tile_num as u32 * 32;
+                let pixel_in_tile = (y % 8) * 8 + (x % 8);
+
+                let pixel_addr = tile_addr + pixel_in_tile as u32;
+                let pixel = memory.read_u8(pixel_addr);
+
+                let color_addr = if color_mode == 0 {
+                    0x05000000 + pixel as u32 * 2
+                } else {
+                    0x05000000 + palette_num as u32 * 16 * 2 + pixel as u32 * 2
+                };
+                let color = memory.read_u16(color_addr);
+
+                let color565 = self.rgb555_to_rgb565(color);
+                let rgb = self.rgb565_to_rgba8(color565);
 
                 let fb_offset = (y * SCREEN_WIDTH + x) * 4;
-                self.framebuffer[fb_offset] = color.0;
-                self.framebuffer[fb_offset + 1] = color.1;
-                self.framebuffer[fb_offset + 2] = color.2;
+                self.framebuffer[fb_offset] = rgb.0;
+                self.framebuffer[fb_offset + 1] = rgb.1;
+                self.framebuffer[fb_offset + 2] = rgb.2;
                 self.framebuffer[fb_offset + 3] = 255;
             }
         }
+    }
+
+    fn rgb555_to_rgb565(&self, rgb555: u16) -> u16 {
+        let r = (rgb555 >> 10) & 0x1F;
+        let g = (rgb555 >> 5) & 0x1F;
+        let b = rgb555 & 0x1F;
+        (r << 11) | (g << 6) | b
     }
 
     fn rgb565_to_rgba8(&self, rgb565: u16) -> (u8, u8, u8) {

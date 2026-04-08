@@ -61,12 +61,16 @@ impl CPU {
         instruction
     }
 
+    pub fn get_total_cycles(&self) -> u64 {
+        self.total_cycles
+    }
+
     pub fn get_pc(&self) -> u32 {
         self.registers.get_pc()
     }
 
     pub fn set_pc(&mut self, pc: u32) {
-        self.registers.set_pc(pc);
+        self.registers.set_pc(pc)
     }
 
     pub fn is_in_thumb_mode(&self) -> bool {

@@ -2,8 +2,9 @@ use crate::cpu::ArmExecutor;
 use crate::cpu::CPU;
 
 pub fn decode_arm(opcode: u32) -> ArmExecutor {
-    for format in ARM_INSTRUCTION_FORMATS {
-        if format.matches(opcode) {
+    for (i, format) in ARM_INSTRUCTION_FORMATS.iter().enumerate() {
+        let matches = format.matches(opcode);
+        if matches {
             return format.executor;
         }
     }
@@ -24,7 +25,7 @@ impl ArmDecoder {
     }
 }
 
-const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
+const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 15] = [
     ArmDecoder {
         format: 0b0000_0001_0010_1111_1111_1111_0001_0000,
         mask: 0b0000_1111_1111_1111_1111_1111_1111_0000,
@@ -50,13 +51,15 @@ const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
         mask: 0b0000_1110_0000_0000_0000_0000_0001_0000,
         executor: CPU::arm_undefined,
     },
+    // LDRH/STRH immediate offset variant (I=0)
     ArmDecoder {
-        format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
+        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
         mask: 0b0000_1110_0100_0000_0000_0000_1001_0000,
         executor: CPU::arm_halfword_data_transfer_immediate,
     },
+    // LDRH/STRH register offset variant (I=1)
     ArmDecoder {
-        format: 0b0000_0000_0000_0000_0000_0000_1001_0000,
+        format: 0b0000_0000_0100_0000_0000_0000_1001_0000,
         mask: 0b0000_1110_0100_0000_0000_1111_1001_0000,
         executor: CPU::arm_halfword_data_transfer_register,
     },
@@ -93,6 +96,12 @@ const ARM_INSTRUCTION_FORMATS: [ArmDecoder; 14] = [
     ArmDecoder {
         format: 0b0000_0000_0000_0000_0000_0000_0000_0000,
         mask: 0b0000_1100_0000_0000_0000_0000_0000_0000,
+        executor: CPU::arm_data_processing,
+    },
+    // Additional patterns for edge cases
+    ArmDecoder {
+        format: 0b0000_0000_0000_0000_0000_0000_0000_0000,
+        mask: 0b0000_1110_0000_0000_0000_0000_0000_0000,
         executor: CPU::arm_data_processing,
     },
 ];
