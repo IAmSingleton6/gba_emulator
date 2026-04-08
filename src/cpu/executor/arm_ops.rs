@@ -2,12 +2,13 @@ use crate::cpu::operations::{
     add_op, and_op, bic_op, eor_op, mvn_op, orr_op, rsb_op, should_branch, sub_op, Condition,
 };
 use crate::cpu::CPU;
+use crate::memory::{Memory, MemoryAccess};
 use simple_bits::BitsExt;
 
-pub type ArmExecutor = fn(&mut CPU, u32) -> u64;
+pub type ArmExecutor = fn(&mut CPU, &mut Memory, u32) -> u64;
 
 impl CPU {
-    pub fn arm_no_op(&mut self, _opcode: u32) -> u64 {
+    pub fn arm_no_op(&mut self, _memory: &mut Memory, _opcode: u32) -> u64 {
         0
     }
 
@@ -16,7 +17,7 @@ impl CPU {
     // BL: Cond=1111, 27-25=101, 24=1, 23-0=Offset (sets LR = PC+4)
     // BX: Cond=1111, 27-8=0001001011111111, 7-4=0001, 3-0=Rn (switches ARM/Thumb, bit 0 of Rn determines mode)
     // BLX: Cond=1111, 27-8=0001001011111111, 7-4=0011, 3-0=Rn (Branch with Link, switches mode)
-    pub fn arm_branch_and_branch_exchange(&mut self, opcode: u32) -> u64 {
+    pub fn arm_branch_and_branch_exchange(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         let should_exec = should_branch(&self.registers, cond);
@@ -30,19 +31,19 @@ impl CPU {
         let bits_7_4 = opcode.extract_bits(4..8);
 
         if bits_27_25 == 0b101 && !bit_24 {
-            return self.arm_branch_impl(opcode); // B - Branch
+            return self.arm_branch_impl(memory, opcode); // B - Branch
         }
 
         if bits_27_25 == 0b101 && bit_24 {
-            return self.arm_branch_with_link(opcode); // BL - Branch with Link
+            return self.arm_branch_with_link(memory, opcode); // BL - Branch with Link
         }
 
         if bits_27_25 == 0b001 && bits_7_4 == 0b0001 {
-            return self.arm_branch_exchange(opcode); // BX - Branch and Exchange
+            return self.arm_branch_exchange(memory, opcode); // BX - Branch and Exchange
         }
 
         if bits_27_25 == 0b001 && bits_7_4 == 0b0011 {
-            return self.arm_branch_with_link_register(opcode); // BLX - Branch and Exchange with Link
+            return self.arm_branch_with_link_register(memory, opcode); // BLX - Branch and Exchange with Link
         }
 
         0
@@ -52,7 +53,7 @@ impl CPU {
     // Encoding:Cond|101|L|Offset[23:0]
     // Offset is signed, shifted left 2 (word aligned), range +/- 32MB
     // Cycles: 2S + 1N = 3
-    fn arm_branch_impl(&mut self, opcode: u32) -> u64 {
+    fn arm_branch_impl(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let offset = opcode.extract_bits(0..24);
         let signed_offset = ((offset as i32) << 8) >> 8;
         let branch_offset = signed_offset << 2;
@@ -72,7 +73,7 @@ impl CPU {
     // Encoding:Cond|101|1|Offset[23:0]
     // LR = PC+4 (address following the branch instruction)
     // Cycles: 2S + 1N = 3
-    fn arm_branch_with_link(&mut self, opcode: u32) -> u64 {
+    fn arm_branch_with_link(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let offset = opcode.extract_bits(0..24);
         let signed_offset = ((offset << 8) >> 8) as i32;
         let branch_offset = signed_offset << 2;
@@ -91,7 +92,7 @@ impl CPU {
     // Encoding:Cond=1111|0001001011111111|0001|Rn
     // Switches between ARM and Thumb mode based on bit 0 of Rn
     // Cycles: 2S + 1N = 3 (when branch taken)
-    fn arm_branch_exchange(&mut self, opcode: u32) -> u64 {
+    fn arm_branch_exchange(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let rn = opcode.extract_bits(0..4) as usize;
         let rn_val = self.registers.get_r(rn);
 
@@ -111,7 +112,7 @@ impl CPU {
     // Encoding:Cond=1111|0001001011111111|0011|Rn
     // LR = PC+4, then switches mode based on bit 0 of Rn
     // Cycles: 2S + 1N = 3
-    fn arm_branch_with_link_register(&mut self, opcode: u32) -> u64 {
+    fn arm_branch_with_link_register(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let rn = opcode.extract_bits(0..4) as usize;
         let rn_val = self.registers.get_r(rn);
 
@@ -135,7 +136,7 @@ impl CPU {
     // P=Pre/post indexing (0=post, 1=pre), U=Up/Down (0=down, 1=up), S=PSR/User flag
     // W=Write-back, L=Load/Store (0=store, 1=load), Rn=Base register
     // Cycles: LDM: nS + 1N + 1I, STM: (n-1)S + 2N  (n = number of registers)
-    pub fn arm_block_data_transfer(&mut self, opcode: u32) -> u64 {
+    pub fn arm_block_data_transfer(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -163,7 +164,7 @@ impl CPU {
         if l {
             for i in 0..16 {
                 if (rlist & (1 << i)) != 0 {
-                    let val = self.memory.read_u32(addr);
+                    let val = memory.read_u32(addr);
                     self.registers.set_r(i, val);
                     addr = addr.wrapping_add(4);
                 }
@@ -171,7 +172,7 @@ impl CPU {
         } else {
             for i in 0..16 {
                 if (rlist & (1 << i)) != 0 {
-                    self.memory.write_u32(addr, self.registers.get_r(i));
+                    memory.write_u32(addr, self.registers.get_r(i));
                     addr = addr.wrapping_add(4);
                 }
             }
@@ -195,15 +196,15 @@ impl CPU {
         }
     }
 
-    pub fn arm_branch(&mut self, opcode: u32) -> u64 {
-        self.arm_branch_and_branch_exchange(opcode)
+    pub fn arm_branch(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
+        self.arm_branch_and_branch_exchange(memory, opcode)
     }
 
     // SWI - Software Interrupt
     // Encoding:Cond|1111|Comment[23:0]
     // Enters Supervisor (SVC) mode, jumps to vector 0x08
     // Cycles: 2S + 1N = 3
-    pub fn arm_software_interrupt(&mut self, opcode: u32) -> u64 {
+    pub fn arm_software_interrupt(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let comment = opcode.extract_bits(0..24) as u32;
 
         let pc = self.registers.get_pc();
@@ -220,7 +221,7 @@ impl CPU {
     // Undefined instruction
     // Jumps to Abort mode vector 0x04
     // Cycles: 2S + 1N = 3
-    pub fn arm_undefined(&mut self, _opcode: u32) -> u64 {
+    pub fn arm_undefined(&mut self, _memory: &mut Memory, _opcode: u32) -> u64 {
         self.registers.set_lr(self.registers.get_pc() - 4);
         self.registers.set_cpsr(0x1B);
         self.registers.set_pc(0x04);
@@ -234,7 +235,7 @@ impl CPU {
     // U=Up/Down (0=subtract, 1=add), B=Byte/Word (0=word, 1=byte)
     // W=Write-back (1=update base), L=Load/Store (0=store, 1=load)
     // Cycles: LDR: 1S + 1N + 1I, STR: 2N
-    pub fn arm_single_data_transfer(&mut self, opcode: u32) -> u64 {
+    pub fn arm_single_data_transfer(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -277,16 +278,16 @@ impl CPU {
 
         if l {
             let value = if b {
-                self.memory.read_u8(addr) as u32
+                memory.read_u8(addr) as u32
             } else {
-                self.memory.read_u32(addr)
+                memory.read_u32(addr)
             };
             self.registers.set_r(rd, value);
         } else {
             if b {
-                self.memory.write_u8(addr, rd_val as u8);
+                memory.write_u8(addr, rd_val as u8);
             } else {
-                self.memory.write_u32(addr, rd_val);
+                memory.write_u32(addr, rd_val);
             }
         }
 
@@ -307,7 +308,7 @@ impl CPU {
     // Encoding:Cond|000|1|0000|0| Rn | Rd | 0000|1001| Rm
     // temp = mem[Rn], mem[Rn] = Rm, Rd = temp
     // Cycles: 1S + 2N + 1I = 4
-    pub fn arm_single_data_swap(&mut self, opcode: u32) -> u64 {
+    pub fn arm_single_data_swap(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -322,9 +323,9 @@ impl CPU {
         let rd_val = self.registers.get_r(rd);
         let rm_val = self.registers.get_r(rm);
 
-        let old_val = self.memory.read_u32(addr);
+        let old_val = memory.read_u32(addr);
         self.registers.set_r(rd, old_val);
-        self.memory.write_u32(addr, rm_val);
+        memory.write_u32(addr, rm_val);
 
         // 1S + 2N + 1I = 4
         4
@@ -335,7 +336,7 @@ impl CPU {
     // MUL: Rd = Rm * Rs
     // MLA: Rd = Rm * Rs + Rn
     // Cycles: 1S + mI (m=1-4 depending on MSBs of operand, ARMv4/5)
-    pub fn arm_multiply(&mut self, opcode: u32) -> u64 {
+    pub fn arm_multiply(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -387,7 +388,7 @@ impl CPU {
     // SMULL (Signed Long Multiply), SMLAL (Signed Long Multiply Accumulate)
     // Encoding:Cond|000|1|U|A|S| RdHi | RdLo | Rs | 1001| Rm
     // Cycles: 1S + mI + 1I = 2-5 (depending on result)
-    pub fn arm_multiply_long(&mut self, opcode: u32) -> u64 {
+    pub fn arm_multiply_long(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -439,7 +440,7 @@ impl CPU {
     // Encoding A2: cond|000|P|U|I(0)|W|L| Rn | Rd | imm4Hi | 1001 | imm4Lo
     // I=Immediate (0=immediate, 1=register)
     // Cycles: LDR: 1S + 1N + 1I, STR: 2N
-    pub fn arm_halfword_data_transfer_register(&mut self, opcode: u32) -> u64 {
+    pub fn arm_halfword_data_transfer_register(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -505,9 +506,9 @@ impl CPU {
             // LDRSB: 0x2 (immediate), 0x7 (register)
             // LDRSH: 0x3 (immediate), 0xB (register)
             let val = match opcode_low {
-                0x1 | 0x5 | 0xD => self.memory.read_u16(addr) as u32, // LDRH
-                0x2 | 0x7 => self.memory.read_u8(addr) as i8 as u32,  // LDRSB
-                0x3 | 0xB => self.memory.read_u16(addr) as i16 as u32, // LDRSH
+                0x1 | 0x5 | 0xD => memory.read_u16(addr) as u32, // LDRH
+                0x2 | 0x7 => memory.read_u8(addr) as i8 as u32,  // LDRSB
+                0x3 | 0xB => memory.read_u16(addr) as i16 as u32, // LDRSH
                 _ => 0,
             };
             self.registers.set_r(rd, val);
@@ -515,7 +516,7 @@ impl CPU {
             // STRH: 0x1 (immediate), 0xB (register), 0x9 (also register variant)
             if opcode_low == 0x1 || opcode_low == 0xB || opcode_low == 0x9 {
                 let value = self.registers.get_r(rd) as u16;
-                self.memory.write_u16(addr, value);
+                memory.write_u16(addr, value);
             }
         }
 
@@ -545,15 +546,19 @@ impl CPU {
     }
 
     // LDRH/STRH immediate offset variant - delegates to register variant
-    pub fn arm_halfword_data_transfer_immediate(&mut self, opcode: u32) -> u64 {
-        self.arm_halfword_data_transfer_register(opcode)
+    pub fn arm_halfword_data_transfer_immediate(
+        &mut self,
+        memory: &mut Memory,
+        opcode: u32,
+    ) -> u64 {
+        self.arm_halfword_data_transfer_register(memory, opcode)
     }
 
     // MRS - Move PSR to Register
     // Encoding:Cond|000|1|0|0|0|0| Rd | 0000|0000|0|0| S| Rm
     // S=0:CPSR, 1:SPSR
     // Cycles: 1S = 1 (or 2 on some ARM variants)
-    pub fn arm_psr_transfer_mrs(&mut self, opcode: u32) -> u64 {
+    pub fn arm_psr_transfer_mrs(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -573,7 +578,7 @@ impl CPU {
     // Encoding:Cond|000|1|0|0|0|1| 0000 | Rn | 0000|0000|0|0| S| Rm
     // MSR (immediate): Cond|000|1|0|0|1|1| 0000 | field | imm12
     // Cycles: 1S = 1 (or 2 on some ARM variants)
-    pub fn arm_psr_transfer_msr(&mut self, opcode: u32) -> u64 {
+    pub fn arm_psr_transfer_msr(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -624,7 +629,7 @@ impl CPU {
     // OpCodes: 0000=AND, 0001=EOR, 0010=SUB, 0011=RSB, 0100=ADD, 0101=ADC, 0110=SBC, 0111=RSC
     //          1000=TST, 1001=TEQ, 1010=CMP, 1011=CMN, 1100=ORR, 1101=MOV, 1110=BIC, 1111=MVN
     // Cycles: 1S for most operations, 1S+1I for shifts
-    pub fn arm_data_processing(&mut self, opcode: u32) -> u64 {
+    pub fn arm_data_processing(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let cond = Condition::from(opcode.extract_bits(28..32) as u16);
 
         if !should_branch(&self.registers, cond) {
@@ -784,31 +789,23 @@ impl CPU {
     }
 
     // ADD immediate variant - delegates to data_processing
-    pub fn arm_add_immediate(&mut self, opcode: u32) -> u64 {
-        eprintln!("DEBUG: arm_add_immediate called");
-        self.arm_data_processing(opcode)
+    pub fn arm_add_immediate(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
+        self.arm_data_processing(memory, opcode)
     }
 
-    // SUB immediate variant - delegates to data_processing
-    pub fn arm_sub_immediate(&mut self, opcode: u32) -> u64 {
-        self.arm_data_processing(opcode)
+    pub fn arm_sub_immediate(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
+        self.arm_data_processing(memory, opcode)
     }
 
-    // CMP - Compare - delegates to data_processing
-    pub fn arm_cmp(&mut self, opcode: u32) -> u64 {
-        self.arm_data_processing(opcode)
+    pub fn arm_cmp(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
+        self.arm_data_processing(memory, opcode)
     }
 
-    // MOV immediate variant - delegates to data_processing
-    pub fn arm_mov_immediate(&mut self, opcode: u32) -> u64 {
-        self.arm_data_processing(opcode)
+    pub fn arm_mov_immediate(&mut self, memory: &mut Memory, opcode: u32) -> u64 {
+        self.arm_data_processing(memory, opcode)
     }
 
-    // BKPT - Breakpoint
-    // Encoding:Cond|1110|0001001111111111|Comment[19:0]
-    // Enters Abort mode, jumps to vector 0x0C
-    // Cycles: 2S + 1N = 3 (or 2S + 1N + 1I = 4 on ARM9)
-    pub fn arm_bkpt(&mut self, opcode: u32) -> u64 {
+    pub fn arm_bkpt(&mut self, _memory: &mut Memory, opcode: u32) -> u64 {
         let comment = opcode.extract_bits(0..20);
 
         let pc = self.registers.get_pc();

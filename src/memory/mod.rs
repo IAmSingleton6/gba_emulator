@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
+use std::rc::Rc;
 
 use crate::cpu::DEBUG_PRINT;
 
@@ -10,6 +12,27 @@ pub trait MemoryAccess {
     fn write_u16(&mut self, address: u32, value: u16);
     fn read_u8(&self, address: u32) -> u8;
     fn write_u8(&mut self, address: u32, value: u8);
+}
+
+impl MemoryAccess for Rc<RefCell<Memory>> {
+    fn read_u32(&self, address: u32) -> u32 {
+        self.borrow().read_u32(address)
+    }
+    fn write_u32(&mut self, address: u32, value: u32) {
+        self.borrow_mut().write_u32(address, value)
+    }
+    fn read_u16(&self, address: u32) -> u16 {
+        self.borrow().read_u16(address)
+    }
+    fn write_u16(&mut self, address: u32, value: u16) {
+        self.borrow_mut().write_u16(address, value)
+    }
+    fn read_u8(&self, address: u32) -> u8 {
+        self.borrow().read_u8(address)
+    }
+    fn write_u8(&mut self, address: u32, value: u8) {
+        self.borrow_mut().write_u8(address, value)
+    }
 }
 
 #[derive(Clone)]

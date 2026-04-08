@@ -3,17 +3,17 @@ use crate::cpu::operations::{
     Condition,
 };
 use crate::cpu::CPU;
+use crate::memory::{Memory, MemoryAccess};
 use simple_bits::BitsExt;
 
-pub type ThumbExecutor = fn(&mut CPU, u16) -> u64;
+pub type ThumbExecutor = fn(&mut CPU, &mut Memory, u16) -> u64;
 
 impl CPU {
-    pub fn thumb_no_op(&mut self, _opcode: u16) -> u64 {
+    pub fn thumb_no_op(&mut self, _memory: &mut Memory, _opcode: u16) -> u64 {
         0
     }
 
-    // COMPLETE
-    pub fn thumb_move_shifted_register(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_move_shifted_register(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bits(11..13);
         let offset = opcode.extract_bits(6..11) as u32;
         let rs = opcode.extract_bits(3..6) as usize;
@@ -38,7 +38,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_add_subtract(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_add_subtract(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bits(9..11);
         let nn = opcode.extract_bits(6..9);
         let rs = opcode.extract_bits(3..6);
@@ -68,7 +68,11 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_move_compare_add_subtract_immediate(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_move_compare_add_subtract_immediate(
+        &mut self,
+        _memory: &mut Memory,
+        opcode: u16,
+    ) -> u64 {
         let op = opcode.extract_bits(11..13);
         let rd = opcode.extract_bits(8..11) as usize;
         let nn = opcode.extract_bits(0..8) as u32;
@@ -99,7 +103,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_alu_operations(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_alu_operations(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bits(6..10);
         let rs = opcode.extract_bits(3..6) as usize;
         let rd = opcode.extract_bits(0..3) as usize;
@@ -242,7 +246,11 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_hi_register_operations_branch_exchange(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_hi_register_operations_branch_exchange(
+        &mut self,
+        _memory: &mut Memory,
+        opcode: u16,
+    ) -> u64 {
         let op = opcode.extract_bits(8..10);
         let msb_d = opcode.extract_bit(7);
         let msb_s = opcode.extract_bit(6);
@@ -301,13 +309,13 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_pc_relative_load(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_pc_relative_load(&mut self, memory: &mut Memory, opcode: u16) -> u64 {
         let rd = opcode.extract_bits(8..11) as usize;
         let nn = opcode.extract_bits(0..8) as u32;
 
         let pc = self.registers.get_visible_pc();
         let address = pc + 4 + nn;
-        let data = self.memory.read_u32(address);
+        let data = memory.read_u32(address);
 
         self.registers.set_r(rd, data);
 
@@ -316,7 +324,11 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_load_store_with_register_offset(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_load_store_with_register_offset(
+        &mut self,
+        memory: &mut Memory,
+        opcode: u16,
+    ) -> u64 {
         let op = opcode.extract_bits(10..12);
         let ro = opcode.extract_bits(6..9) as usize;
         let rb = opcode.extract_bits(3..6) as usize;
@@ -331,23 +343,23 @@ impl CPU {
         let cycles = match op {
             0 => {
                 // STR (Store 32-bit data)
-                self.memory.write_u32(address, rd_val);
+                memory.write_u32(address, rd_val);
                 2
             }
             1 => {
                 // STRB (Store 8-bit data)
-                self.memory.write_u8(address, rd_val as u8);
+                memory.write_u8(address, rd_val as u8);
                 2
             }
             2 => {
                 // LDR (Load 32-bit data)
-                let data = self.memory.read_u32(address);
+                let data = memory.read_u32(address);
                 self.registers.set_r(rd, data);
                 3
             }
             3 => {
                 // LDRB (Load 8-bit data)
-                let data = self.memory.read_u8(address) as u32;
+                let data = memory.read_u8(address) as u32;
                 self.registers.set_r(rd, data);
                 3
             }
@@ -361,7 +373,11 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_load_store_sign_extended_byte_halfword(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_load_store_sign_extended_byte_halfword(
+        &mut self,
+        memory: &mut Memory,
+        opcode: u16,
+    ) -> u64 {
         let op = opcode.extract_bits(10..12);
         let ro = opcode.extract_bits(6..9) as usize;
         let rb = opcode.extract_bits(3..6) as usize;
@@ -376,24 +392,24 @@ impl CPU {
         let cycles = match op {
             0 => {
                 // STRH (Store Halfword)
-                self.memory.write_u16(address, rd_val as u16);
+                memory.write_u16(address, rd_val as u16);
                 2
             }
             1 => {
                 // LDSB (Load Sign-Extended Byte)
-                let data = self.memory.read_u8(address) as i8 as u32;
+                let data = memory.read_u8(address) as i8 as u32;
                 self.registers.set_r(rd, data);
                 3
             }
             2 => {
                 // LDRH (Load Zero-Extended Halfword)
-                let data = self.memory.read_u16(address) as u32;
+                let data = memory.read_u16(address) as u32;
                 self.registers.set_r(rd, data);
                 3
             }
             3 => {
                 // LDSH (Load Sign-Extended Halfword)
-                let data = self.memory.read_u16(address) as i16 as u32;
+                let data = memory.read_u16(address) as i16 as u32;
                 self.registers.set_r(rd, data);
                 3
             }
@@ -407,7 +423,11 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_load_store_with_immediate_offset(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_load_store_with_immediate_offset(
+        &mut self,
+        memory: &mut Memory,
+        opcode: u16,
+    ) -> u64 {
         let op = opcode.extract_bits(11..13);
         let nn = opcode.extract_bits(6..9) as u32;
         let rb = opcode.extract_bits(3..6) as usize;
@@ -420,23 +440,23 @@ impl CPU {
         let cycles = match op {
             0 => {
                 // STR (Store 32-bit)
-                self.memory.write_u32(address, rd_val);
+                memory.write_u32(address, rd_val);
                 2
             }
             1 => {
                 // LDR (Load 32-bit)
-                let data = self.memory.read_u32(address);
+                let data = memory.read_u32(address);
                 self.registers.set_r(rd, data);
                 3
             }
             2 => {
                 // STRB (Store 8-bit)
-                self.memory.write_u8(address, rd_val as u8);
+                memory.write_u8(address, rd_val as u8);
                 2
             }
             3 => {
                 // LDRB (Load 8-bit)
-                let data = self.memory.read_u8(address) as u32;
+                let data = memory.read_u8(address) as u32;
                 self.registers.set_r(rd, data);
                 3
             }
@@ -450,7 +470,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_load_store_halfword(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_load_store_halfword(&mut self, memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bit(11);
         let nn = opcode.extract_bits(6..11) as u32;
         let rb = opcode.extract_bits(3..6) as usize;
@@ -463,12 +483,12 @@ impl CPU {
         let cycles = match op {
             false => {
                 // STRH (Store 16-bit Halfword)
-                self.memory.write_u16(address, rd_val as u16);
+                memory.write_u16(address, rd_val as u16);
                 2
             }
             true => {
                 // LDRH (Load 16-bit Halfword)
-                let data = self.memory.read_u16(address) as u32;
+                let data = memory.read_u16(address) as u32;
                 self.registers.set_r(rd, data);
                 3
             }
@@ -479,7 +499,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_sp_relative_load_store(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_sp_relative_load_store(&mut self, memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bit(11);
         let rd = opcode.extract_bits(8..11) as usize;
         let nn = opcode.extract_bits(0..8) as u32;
@@ -491,12 +511,12 @@ impl CPU {
             false => {
                 // STR (Store 32-bit)
                 let rd_val = self.registers.get_r(rd);
-                self.memory.write_u32(address, rd_val);
+                memory.write_u32(address, rd_val);
                 2
             }
             true => {
                 // LDR (Load 32-bit)
-                let data = self.memory.read_u32(address);
+                let data = memory.read_u32(address);
                 self.registers.set_r(rd, data);
                 3
             }
@@ -507,7 +527,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_get_relative_address(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_get_relative_address(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bit(11);
         let rd = opcode.extract_bits(8..11) as usize;
         let nn = opcode.extract_bits(0..8) as u32;
@@ -532,7 +552,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_add_offset_to_stack_pointer(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_add_offset_to_stack_pointer(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bit(7);
         let nn = opcode.extract_bits(0..7) as u32;
 
@@ -555,20 +575,20 @@ impl CPU {
         1
     }
 
-    pub fn thumb_push_pop_registers(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_push_pop_registers(&mut self, memory: &mut Memory, opcode: u16) -> u64 {
         let op = opcode.extract_bit(11);
         let pc_lr = opcode.extract_bit(8);
         let r_list = opcode.extract_bits(0..8) as u8;
 
         if op {
-            self.thumb_pop(pc_lr, r_list)
+            self.thumb_pop(memory, pc_lr, r_list)
         } else {
-            self.thumb_push(pc_lr, r_list)
+            self.thumb_push(memory, pc_lr, r_list)
         }
     }
 
     // COMPLETE
-    pub fn thumb_multiple_load_store(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_multiple_load_store(&mut self, memory: &mut Memory, opcode: u16) -> u64 {
         /*
            TODO:
            Strange Effects on Invalid Rlist's
@@ -588,12 +608,12 @@ impl CPU {
             if (r_list & (1 << i)) != 0 {
                 if op {
                     // LDMIA (Load Multiple Increment After)
-                    let value = self.memory.read_u32(base_addr);
+                    let value = memory.read_u32(base_addr);
                     self.registers.set_r(i, value);
                     base_addr += 4; // Increment the base register after loading
                 } else {
                     // STMIA (Store Multiple Increment After)
-                    self.memory.write_u32(base_addr, self.registers.get_r(i));
+                    memory.write_u32(base_addr, self.registers.get_r(i));
                     base_addr += 4; // Increment the base register after storing
                 }
             }
@@ -609,7 +629,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_unconditional_branch(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_unconditional_branch(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let signed_offset_11 = opcode.extract_bits(0..11);
         let signed_offset = ((signed_offset_11 as i32) << 21) >> 21;
         // 2 bytes - halfword aligned
@@ -625,7 +645,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_conditional_branch(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_conditional_branch(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let signed_offset_8 = opcode.extract_bits(0..8);
         let signed_offset = ((signed_offset_8 as i32) << 24) >> 24;
         // Halfword aligned
@@ -647,7 +667,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_long_branch_with_link_1(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_long_branch_with_link_1(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let upper_bits = opcode.extract_bits(0..11);
         let shifted_upper = (upper_bits as i32) << 12;
 
@@ -660,7 +680,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_long_branch_with_link_2(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_long_branch_with_link_2(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let lower_bits = opcode.extract_bits(0..11);
         let shifted_lower = (lower_bits as i32) << 1;
 
@@ -683,7 +703,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_software_interrupt(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_software_interrupt(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let comment_field = opcode.extract_bits(0..8) as u8;
 
         let pc = self.registers.get_pc();
@@ -705,7 +725,7 @@ impl CPU {
     }
 
     // COMPLETE
-    pub fn thumb_breakpoint(&mut self, opcode: u16) -> u64 {
+    pub fn thumb_breakpoint(&mut self, _memory: &mut Memory, opcode: u16) -> u64 {
         let comment_field = opcode.extract_bits(0..8) as u8;
 
         let pc = self.registers.get_pc();
@@ -724,7 +744,7 @@ impl CPU {
         3
     }
 
-    fn thumb_push(&mut self, lr: bool, r_list: u8) -> u64 {
+    fn thumb_push(&mut self, memory: &mut Memory, lr: bool, r_list: u8) -> u64 {
         let mut sp = self.registers.get_sp();
         let mut cycles = 0;
 
@@ -740,13 +760,13 @@ impl CPU {
 
         for i in 0..8 {
             if (r_list & (1 << i)) != 0 {
-                self.memory.write_u32(addr, self.registers.get_r(i));
+                memory.write_u32(addr, self.registers.get_r(i));
                 addr += 4;
             }
         }
 
         if lr {
-            self.memory.write_u32(addr, self.registers.get_lr());
+            memory.write_u32(addr, self.registers.get_lr());
         }
 
         // TODO: Perform any necessary memory prefetching (if applicable)
@@ -756,20 +776,20 @@ impl CPU {
         (num_regs as u64 - 1) + 2
     }
 
-    fn thumb_pop(&mut self, pc: bool, r_list: u8) -> u64 {
+    fn thumb_pop(&mut self, memory: &mut Memory, pc: bool, r_list: u8) -> u64 {
         let mut sp = self.registers.get_sp();
         let num_regs = r_list.count_ones();
 
         for i in 0..8 {
             if (r_list & (1 << i)) != 0 {
-                let val = self.memory.read_u32(sp);
+                let val = memory.read_u32(sp);
                 self.registers.set_r(i, val);
                 sp += 4;
             }
         }
 
         if pc {
-            let val = self.memory.read_u32(sp);
+            let val = memory.read_u32(sp);
             self.registers.set_pc(val);
             sp += 4;
         }

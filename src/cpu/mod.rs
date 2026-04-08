@@ -1,6 +1,7 @@
 use decoder::{decode_arm, decode_thumb};
 use executor::{ArmExecutor, ThumbExecutor};
 
+use crate::memory::Memory;
 use crate::{cpu::registers::Registers, memory::MemoryAccess};
 
 mod decoder;
@@ -13,15 +14,13 @@ pub static DEBUG_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::Atomic
 
 pub struct CPU {
     registers: registers::Registers,
-    memory: Box<dyn MemoryAccess>,
     total_cycles: u64,
 }
 
 impl CPU {
-    pub fn new(memory: Box<dyn MemoryAccess>) -> Self {
+    pub fn new() -> Self {
         CPU {
             registers: Registers::new(),
-            memory,
             total_cycles: 0,
         }
     }
@@ -37,25 +36,26 @@ impl CPU {
         self.registers.set_cpsr(0x00000010);
     }
 
-    pub fn fetch_decode_execute(&mut self) {
+    pub fn fetch_decode_execute(&mut self, memory: &mut Memory) -> u64 {
         let is_in_thumb_mode: bool = self.is_in_thumb_mode();
         let pc: u32 = self.registers.get_pc();
-        let opcode: u32 = self.fetch(is_in_thumb_mode);
+        let opcode: u32 = self.fetch(memory, is_in_thumb_mode);
 
         let cycles = if is_in_thumb_mode {
             let executor: ThumbExecutor = decode_thumb(opcode as u16);
-            executor(self, opcode as u16)
+            executor(self, memory, opcode as u16)
         } else {
             let executor: ArmExecutor = decode_arm(opcode);
-            executor(self, opcode)
+            executor(self, memory, opcode)
         };
 
         self.total_cycles += cycles;
+        cycles
     }
 
-    pub fn fetch(&mut self, is_in_thumb_mode: bool) -> u32 {
+    pub fn fetch(&mut self, memory: &mut Memory, is_in_thumb_mode: bool) -> u32 {
         let pc: u32 = self.registers.get_pc();
-        let instruction = self.memory.read_u32(pc);
+        let instruction = memory.read_u32(pc);
         self.registers
             .set_pc(pc.wrapping_add(if is_in_thumb_mode { 2 } else { 4 }));
         instruction
@@ -99,18 +99,6 @@ impl CPU {
 
     pub fn reset_debug_count() {
         DEBUG_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    fn read_memory(&self, address: u32) -> u32 {
-        self.memory.read_u32(address)
-    }
-
-    fn write_memory(&mut self, address: u32, value: u32) {
-        self.memory.write_u32(address, value)
-    }
-
-    pub fn get_memory(&self) -> &dyn MemoryAccess {
-        self.memory.as_ref()
     }
 
     pub fn store_prefetch(&mut self) {}
