@@ -3,8 +3,6 @@ use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 
-use crate::cpu::DEBUG_PRINT;
-
 pub trait MemoryAccess {
     fn read_u32(&self, address: u32) -> u32;
     fn write_u32(&mut self, address: u32, value: u32);
@@ -43,6 +41,7 @@ pub struct Memory {
     wram: Vec<u8>,
     iwram: Vec<u8>,
     io_registers: Vec<u8>,
+    oam: Vec<u8>,
 }
 
 impl Memory {
@@ -54,6 +53,7 @@ impl Memory {
             wram: vec![0; 32 * 1024],
             iwram: vec![0; 4 * 1024],
             io_registers: vec![0; 256],
+            oam: vec![0; 1024],
         }
     }
 
@@ -261,37 +261,43 @@ impl MemoryAccess for Memory {
         let addr = address & 0x0FFFFFFF;
         let bytes = value.to_le_bytes();
 
+        // Debug: log all write_u16 to VRAM
+        if addr >= 0x06000000 && addr < 0x06018000 {
+            eprintln!("write_u16 VRAM: addr=0x{:08X}, value=0x{:04X}", addr, value);
+        }
+
         // Handle palette mirror - any write to 0x05000000-0x05000FFF goes to palette
         if addr >= 0x05000000 && addr < 0x05001000 {
             let offset = ((addr - 0x05000000) & 0x3FF) as usize;
-            // eprintln!("DEBUG write palette: addr=0x{:08X} offset={} value=0x{:04X}", addr, offset, value);
-            self.palette[offset] = bytes[0];
-            self.palette[offset + 1] = bytes[1];
+            if offset + 1 < self.palette.len() {
+                self.palette[offset] = bytes[0];
+                self.palette[offset + 1] = bytes[1];
+            }
             return;
         }
 
         match addr {
-            0x02000000..=0x0203FFFF | 0x03000000..=0x03007FFF => {
-                let offset = (addr & 0x7FFF) as usize;
+            0x06000000..=0x06017FFF => {
+                let offset = (addr - 0x06000000) as usize;
+                self.vram[offset] = bytes[0];
+                self.vram[offset + 1] = bytes[1];
+            }
+            0x03000000..=0x03007FFF => {
+                let offset = (addr - 0x03000000) as usize;
                 self.iwram[offset] = bytes[0];
                 self.iwram[offset + 1] = bytes[1];
             }
-            0x04000000..=0x040000FF => {
+            0x04000000..=0x040003FF => {
                 let offset = (addr - 0x04000000) as usize;
                 self.io_registers[offset] = bytes[0];
                 self.io_registers[offset + 1] = bytes[1];
             }
-            0x06000000..=0x06017FFF => {
-                let offset = (addr - 0x06000000) as usize;
-                if offset + 2 <= self.vram.len() {
-                    self.vram[offset] = bytes[0];
-                    self.vram[offset + 1] = bytes[1];
-                }
-            }
             0x07000000..=0x070003FF => {
                 let offset = (addr - 0x07000000) as usize;
-                self.vram[offset] = bytes[0];
-                self.vram[offset + 1] = bytes[1];
+                if offset + 1 < self.oam.len() {
+                    self.oam[offset] = bytes[0];
+                    self.oam[offset + 1] = bytes[1];
+                }
             }
             _ => {}
         }

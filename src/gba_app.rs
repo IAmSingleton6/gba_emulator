@@ -16,7 +16,7 @@ impl GBAApp {
             running: false,
         };
 
-        app.load_rom("tests/roms/ppu/shades.gba");
+        app.load_rom("tests/roms/ppu/stripes.gba");
         app
     }
 

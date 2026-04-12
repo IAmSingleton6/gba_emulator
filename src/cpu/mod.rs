@@ -39,6 +39,7 @@ impl CPU {
     pub fn fetch_decode_execute(&mut self, memory: &mut Memory) -> u64 {
         let is_in_thumb_mode: bool = self.is_in_thumb_mode();
         let pc: u32 = self.registers.get_pc();
+
         let opcode: u32 = self.fetch(memory, is_in_thumb_mode);
 
         let cycles = if is_in_thumb_mode {

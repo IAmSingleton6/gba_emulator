@@ -46,7 +46,8 @@ impl CPU {
             return self.arm_branch_with_link_register(memory, opcode); // BLX - Branch and Exchange with Link
         }
 
-        0
+        // Unknown branch returns 0 cycles
+        1
     }
 
     // B - Branch
@@ -270,10 +271,16 @@ impl CPU {
             }
         };
 
-        let addr = if u {
-            base.wrapping_add(offset)
+        let addr = if p {
+            // Pre-indexed
+            if u {
+                base.wrapping_add(offset)
+            } else {
+                base.wrapping_sub(offset)
+            }
         } else {
-            base.wrapping_sub(offset)
+            // Post-indexed - address is base
+            base
         };
 
         if l {
@@ -292,7 +299,16 @@ impl CPU {
         }
 
         if w {
-            self.registers.set_r(rn, addr);
+            let final_addr = if p {
+                addr
+            } else {
+                if u {
+                    base.wrapping_add(offset)
+                } else {
+                    base.wrapping_sub(offset)
+                }
+            };
+            self.registers.set_r(rn, final_addr);
         }
 
         // LDR: 1S + 1N + 1I = 3 cycles (non-sequential + sequential + internal)
